@@ -1,0 +1,16 @@
+services:
+  ocr:
+    build:
+      context: .
+      dockerfile: ocr_service/Dockerfile.gpu
+    environment:
+      # CUDA_VISIBLE_DEVICES inside the container. Keep this independent from
+      # OCR_DEVICE=cpu in the normal .env so the CPU compose remains usable.
+      OCR_DEVICE: ${OCR_GPU_DEVICE:-0}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

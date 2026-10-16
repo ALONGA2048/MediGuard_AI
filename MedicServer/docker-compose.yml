@@ -1,0 +1,77 @@
+name: medic-validation
+
+services:
+  database:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-medicine_ocr}
+      POSTGRES_USER: ${POSTGRES_USER:-medic}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medic_dev_change_me}
+    ports:
+      - "${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/18/docker
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  yolo:
+    build:
+      context: .
+      dockerfile: yolo_service/Dockerfile
+    restart: unless-stopped
+    environment:
+      YOLO_DEVICE: ${YOLO_DEVICE:-cpu}
+      PAIR_CHECKPOINT: /models/best_pair.pt
+      YOLO_BASE_MODEL: /models/yolo_best.pt
+    expose:
+      - "8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
+  ocr:
+    build:
+      context: .
+      dockerfile: ocr_service/Dockerfile
+    restart: unless-stopped
+    environment:
+      PGHOST: database
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-medicine_ocr}
+      PGUSER: ${POSTGRES_USER:-medic}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-medic_dev_change_me}
+      YOLO_URL: http://yolo:8001
+      OCR_DEVICE: ${OCR_DEVICE:-cpu}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
+      FINAL_THRESHOLD: ${FINAL_THRESHOLD:-0.95}
+      OCR_BASIC_SCORE: ${OCR_BASIC_SCORE:-50.0}
+      OCR_TIE_GAP: ${OCR_TIE_GAP:-8.0}
+      UPLOAD_ROOT: /data/uploads
+      RESULT_ROOT: /data/results
+    ports:
+      # Explicitly publish the API on every host interface so Raspberry Pi and
+      # other devices on the 210.240.160.0/24 LAN can reach it.
+      - "${OCR_BIND_HOST:-0.0.0.0}:${OCR_PORT:-8000}:8000"
+    volumes:
+      - ./data/uploads:/data/uploads
+      - ./data/results:/data/results
+      - ./data/paddle:/home/appuser/.paddleocr
+    depends_on:
+      database:
+        condition: service_healthy
+      yolo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 90s

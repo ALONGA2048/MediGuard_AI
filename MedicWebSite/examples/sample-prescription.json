@@ -1,0 +1,21 @@
+{
+  "id": "RX-20261013-DEMO",
+  "clinic": "安心家庭診所",
+  "date": "2026/10/13",
+  "days": 7,
+  "status": "服用中",
+  "medicines": [
+    {
+      "name": "普拿疼膜衣錠 500 毫克",
+      "dosage": "1 錠",
+      "frequency": "每日 3 次",
+      "timing": "飯後"
+    },
+    {
+      "name": "胃舒平錠",
+      "dosage": "1 錠",
+      "frequency": "每日 3 次",
+      "timing": "飯前"
+    }
+  ]
+}

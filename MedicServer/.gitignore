@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/paddle/
+data/postgres/
+data/results/*
+data/uploads/*
+!data/results/.gitkeep
+!data/uploads/.gitkeep
+
