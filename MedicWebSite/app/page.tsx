@@ -87,6 +87,7 @@ async function createZip(files:{name:string;blob:Blob;modifiedAt:Date}[]){
 function DeviceControl(){
   const [busy,setBusy]=useState(false),[preview,setPreview]=useState(false),[photos,setPhotos]=useState<CaptureResult|null>(null),[recognition,setRecognition]=useState<RecognitionState|null>(null),[error,setError]=useState("");
   const recognitionPoll=useRef(0);
+  const [previewSession,setPreviewSession]=useState(0);
   const fixedLighting={lightMode:"white",brightness:85} as const;
   useEffect(()=>()=>{recognitionPoll.current+=1},[]);
   async function parseResponse(response:Response){const data=await response.json() as {success?:boolean;message?:string;error?:string;result?:CaptureResult};if(!response.ok||data.success===false)throw new Error(data.message||data.error||"樹莓派指令執行失敗");return data}
@@ -107,7 +108,21 @@ function DeviceControl(){
     }
     if(recognitionPoll.current===pollId)setRecognition({captureId,status:"failed",error:"辨識等待超過 5 分鐘，請確認 MedicServer 狀態。"});
   }
-  async function startPositioning(){recognitionPoll.current+=1;setError("");setBusy(true);try{const response=await fetch("/api/v1/devices/medibox-01/preview/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(fixedLighting)});await parseResponse(response);setPhotos(null);setRecognition(null);setPreview(true)}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
+  async function startPositioning(){
+    if(busy)return;
+    recognitionPoll.current+=1;
+    setPhotos(null);
+    setRecognition(null);
+    setPreview(false);
+    setError("");
+    setBusy(true);
+    try{
+      const response=await fetch("/api/v1/devices/medibox-01/preview/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(fixedLighting),signal:AbortSignal.timeout(12_000)});
+      await parseResponse(response);
+      setPreviewSession(session=>session+1);
+      setPreview(true);
+    }catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}
+  }
   async function cancelPositioning(){setError("");setBusy(true);try{const response=await fetch("/api/v1/devices/medibox-01/preview/stop",{method:"POST"});await parseResponse(response);setPreview(false)}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
   async function takePhotos(){setBusy(true);setError("");try{const response=await fetch("/api/v1/devices/medibox-01/commands",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"capture",payload:fixedLighting})});const data=await parseResponse(response);if(!data.result)throw new Error("樹莓派未回傳照片資訊");setPreview(false);setPhotos(data.result);const captureId=data.result.captureId;const backendStatus=data.result.backendUpload.status as RecognitionState["status"];setRecognition({captureId,status:backendStatus});if(["queued","processing"].includes(backendStatus)){const pollId=recognitionPoll.current+1;recognitionPoll.current=pollId;void waitForRecognition(captureId,pollId)}}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
   function photoUrl(cameraId:number){return photos?`/api/v1/devices/medibox-01/captures/${photos.captureId}/camera/${cameraId}`:""}
@@ -118,7 +133,7 @@ function DeviceControl(){
   const outcomeText=serverResult?.outcome==="MATCH"?"符合預期":serverResult?.outcome==="MISMATCH"?"與預期不符":serverResult?.outcome==="NEEDS_REVIEW"?"需要人工確認":serverResult?.outcome==="IDENTIFIED"?"已辨識":"辨識完成";
   return <><Title eyebrow="MEDICATION IDENTIFICATION" title={photos?"辨識結果":"藥物辨識"} desc={photos?"請確認拍攝照片與系統辨識結果。":"將藥品放入暗箱，依畫面指示完成定位與拍攝。"}/>
     <div className="capture-steps"><span className={!preview&&!photos?"active":"done"}><i>1</i>啟動辨識</span><b/><span className={preview?"active":photos?"done":""}><i>2</i>校準位置</span><b/><span className={photos?"active":""}><i>3</i>查看結果</span></div>
-    {!photos&&<div className="control-grid"><div className="camera-panel panel"><div className="camera-view"><div className="viewfinder"><i/><i/><i/><i/></div>{preview?<><img className="camera-feed" src="/api/v1/devices/medibox-01/preview/stream" alt="藥品定位畫面"/><span className="calibration-cross" aria-hidden="true"/></>:<div className="capture-idle"><span><ScanLine/></span><strong>準備開始辨識</strong><small>啟動後請將藥品放在畫面中央</small></div>}<span className="camera-label"><Camera/> 藥品定位畫面</span>{busy&&<div className="capturing"><ScanLine/><strong>{preview?"正在拍攝兩個角度…":"正在啟動辨識…"}</strong></div>}</div><div className="camera-footer"><span><i/> {preview?"定位中":"尚未啟動"}</span><span>{preview?"請將藥品置於紅色十字中央":"啟動後會顯示即時畫面"}</span></div></div>
+    {!photos&&<div className="control-grid"><div className="camera-panel panel"><div className="camera-view"><div className="viewfinder"><i/><i/><i/><i/></div>{preview?<><img key={previewSession} className="camera-feed" src={`/api/v1/devices/medibox-01/preview/stream?session=${previewSession}`} alt="藥品定位畫面"/><span className="calibration-cross" aria-hidden="true"/></>:<div className="capture-idle"><span><ScanLine/></span><strong>準備開始辨識</strong><small>啟動後請將藥品放在畫面中央</small></div>}<span className="camera-label"><Camera/> 藥品定位畫面</span>{busy&&<div className="capturing"><ScanLine/><strong>{preview?"正在拍攝兩個角度…":"正在啟動辨識…"}</strong></div>}</div><div className="camera-footer"><span><i/> {preview?"定位中":"尚未啟動"}</span><span>{preview?"請將藥品置於紅色十字中央":"啟動後會顯示即時畫面"}</span></div></div>
       <div className="control-panel panel"><Head kicker="GUIDED CAPTURE" title="拍攝指引" action={<Lightbulb/>}/><div className="fixed-capture-settings"><div><span className="fixed-light"><Lightbulb/></span><p><small>燈光</small><strong>固定白光，自動開啟</strong></p></div><div><span><Camera/></span><p><small>拍攝</small><strong>自動取得兩個角度</strong></p></div></div><div className="capture-guide"><span><b>1</b>將藥品平放在暗箱中央</span><span><b>2</b>對準畫面中的紅色十字</span><span><b>3</b>按下拍攝並等待辨識</span></div><div className="capture-actions">{!preview?<button className="capture-btn" onClick={startPositioning} disabled={busy}><ScanLine/> {busy?"啟動中…":"啟動辨識"}</button>:<><button className="capture-btn photo-now" onClick={takePhotos} disabled={busy}><Camera/> {busy?"拍攝中…":"拍攝並開始辨識"}</button><button className="cancel-capture" onClick={cancelPositioning} disabled={busy}>取消</button></>}<p className="safe-note"><ShieldCheck/> 拍攝完成後燈光會自動關閉</p></div></div></div>}
     {error&&<div className="device-error"><Info/><span><strong>辨識操作失敗</strong>{error}</span></div>}
     {photos&&<section className="recognition-stage"><div className="captured-head"><div><span className="section-kicker">IDENTIFICATION RESULT</span><h2>本次辨識結果</h2><p>以下為兩個拍攝角度與系統分析結果。</p></div><span className={`status ${recognition?.status==="completed"?"verified":recognition?.status==="failed"?"recognition-failed":"recognition-waiting"}`}>{recognition?.status==="completed"?<><Check/> 辨識完成</>:recognition?.status==="failed"?<><Info/> 辨識失敗</>:<><Activity/> 辨識中</>}</span></div><div className="captured-grid">{[photos.camera1,photos.camera2].map(photo=><article className="captured-photo panel" key={photo.cameraId}><div><img src={photoUrl(photo.cameraId)} alt={`藥品拍攝角度 ${photo.cameraId}`}/><span>角度 {photo.cameraId}</span></div><footer><strong>藥品照片・角度 {photo.cameraId}</strong></footer></article>)}</div>

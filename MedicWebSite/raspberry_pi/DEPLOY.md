@@ -18,7 +18,7 @@ scp raspberry_pi/hardware.py admin@210.240.160.159:/home/admin/yolo_env/hardware
 MEDILENS_DEVICE_TOKEN=請換成至少32字元的隨機內容
 MEDILENS_LISTEN_HOST=0.0.0.0
 MEDILENS_LISTEN_PORT=5000
-MEDILENS_WEBSITE_ORIGINS=http://210.240.160.148:3000,http://210.240.160.148:3001
+MEDILENS_WEBSITE_ORIGINS=http://210.240.160.159:3000,http://210.240.160.159:3001
 MEDILENS_CAMERA_1=0
 MEDILENS_CAMERA_2=2
 MEDILENS_CAMERA_1_FOCUS=340
@@ -31,7 +31,7 @@ MEDILENS_CAPTURE_WIDTH=1920
 MEDILENS_CAPTURE_HEIGHT=1080
 MEDILENS_CAPTURE_FPS=30
 MEDILENS_CAPTURE_DIR=/home/admin/yolo_env/captures
-MEDILENS_BACKEND_UPLOAD_URL=http://210.240.160.148:8000/api/v1/verifications
+MEDILENS_BACKEND_UPLOAD_URL=http://210.240.160.159:8000/api/v1/verifications
 MEDILENS_BACKEND_UPLOAD_TOKEN=
 MEDILENS_RESERVED_LED_RGB=0,0,0
 ```
@@ -48,14 +48,16 @@ sudo -E ./bin/python hardware.py
 
 ## 3. 網站主機
 
-在 `210.240.160.148` 的網站專案 `.env.local` 設定相同金鑰：
+辨識上傳目的地由樹莓派 `/home/admin/yolo_env/.env` 的 `MEDILENS_BACKEND_UPLOAD_URL` 決定，網站的 `RASPBERRY_PI_BASE_URL` 只控制網站連往硬體服務的位址。現行辨識 Server 為 `210.240.160.159:8000`。修改既有設定時保留共同金鑰，並執行 `sudo systemctl restart medilens-hardware`；若是手動啟動，必須重新載入 `.env` 後重啟 Python。只修改此儲存庫的範例不會更新運行中的裝置。
+
+在 `210.240.160.159` 的網站專案 `.env.local` 設定相同金鑰：
 
 ```text
 RASPBERRY_PI_BASE_URL=http://210.240.160.159:5000
 RASPBERRY_PI_DEVICE_TOKEN=與樹莓派完全相同的金鑰
 ```
 
-修改環境變數後重新啟動 `npm run dev`，區域網路使用者可經由 `http://210.240.160.148:3000` 開啟正式網站，或經由 `http://210.240.160.148:3001` 開啟測試介面。主機防火牆需允許 TCP 3000 與 3001。
+修改環境變數後重新啟動 `npm run dev`，區域網路使用者可經由 `http://210.240.160.159:3000` 開啟正式網站，或經由 `http://210.240.160.159:3001` 開啟測試介面。主機防火牆需允許 TCP 3000 與 3001。
 
 ## 4. 測試
 
@@ -77,7 +79,7 @@ curl -X POST -H "Authorization: Bearer $MEDILENS_DEVICE_TOKEN" -H "Content-Type:
 先確認樹莓派可連到辨識伺服器：
 
 ```bash
-curl http://210.240.160.148:8000/api/v1/health
+curl http://210.240.160.159:8000/api/v1/health
 ```
 
 若 Python 環境尚未安裝上傳套件：

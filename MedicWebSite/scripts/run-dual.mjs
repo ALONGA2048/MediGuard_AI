@@ -17,6 +17,8 @@ const mainArgs = mode === "dev"
       "--import", "./scripts/sites-env.mjs",
       "./node_modules/wrangler/bin/wrangler.js", "dev",
       "--config", "dist/server/wrangler.json",
+      "--env-file", fileURLToPath(new URL("../.env", import.meta.url)),
+      "--env-file", fileURLToPath(new URL("../.env.local", import.meta.url)),
       "--local", "--persist-to", ".wrangler/state",
       "--ip", "0.0.0.0", "--port", String(mainPort), "--inspector-port", "0",
     ];

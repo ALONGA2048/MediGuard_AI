@@ -19,7 +19,7 @@ The tester interface may pass `lightMode` (`white`, `warm`, or visual `uv`), `br
 
 ## MedicServer verification API
 
-- Base URL on the current LAN: `http://210.240.160.148:8000`.
+- Base URL on the current LAN: `http://210.240.160.159:8000`.
 - `POST /api/v1/verifications` — multipart form upload. Camera 1 must use field `front_image`; Camera 2 must use `back_image`. Optional fields are `expected_drug_id` and `expected_name`.
 - `GET /api/v1/verifications/{verification_id}` — retrieve a stored verification directly from MedicServer.
 - MedicServer currently returns the completed verification synchronously with HTTP 201. The Pi performs this request on a background thread so the website can display the photos and a processing state immediately.
@@ -27,7 +27,7 @@ The tester interface may pass `lightMode` (`white`, `warm`, or visual `uv`), `br
 
 ## Raspberry Pi transport
 
-The initial LAN integration uses an authenticated HTTP proxy: browser → website host `210.240.160.148` → Pi `210.240.160.159:5000`. The browser never receives the device token or addresses the Pi command API directly. MQTT remains the recommended later option when the device must cross NAT or an untrusted network.
+The initial LAN integration uses an authenticated HTTP proxy: browser → website host `210.240.160.159` → Pi `210.240.160.159:5000`. The browser never receives the device token or addresses the Pi command API directly. MQTT remains the recommended later option when the device must cross NAT or an untrusted network.
 
 - Commands: `medilens/devices/{deviceId}/commands`
 - Command results: `medilens/devices/{deviceId}/events`

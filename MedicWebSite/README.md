@@ -82,11 +82,13 @@ In local-only capture mode the Raspberry Pi returns both high-resolution images 
 
 Server-side settings in `.env.local`:
 
+Local production startup (`npm start` / `npm run start:main`) explicitly reads the project-root `.env` followed by `.env.local`; values in `.env.local` take precedence. The current LAN website, hardware, and recognition service addresses use `210.240.160.159`, with ports `3000`/`3001`, `5000`, and `8000` respectively. The recognition upload URL is configured separately on the Raspberry Pi, not in the website environment.
+
 | Variable | Purpose |
 | --- | --- |
 | `RASPBERRY_PI_BASE_URL` | Raspberry Pi hardware service address, for example `http://210.240.160.159:5000` |
 | `RASPBERRY_PI_DEVICE_TOKEN` | A long random value that exactly matches the Pi's `MEDILENS_DEVICE_TOKEN` |
-| `MEDIGUARD_ALLOWED_DEV_ORIGINS` | Comma-separated LAN hostnames or IP addresses allowed to load Vinext development assets, for example `210.240.160.148` |
+| `MEDIGUARD_ALLOWED_DEV_ORIGINS` | Comma-separated LAN hostnames or IP addresses allowed to load Vinext development assets, for example `210.240.160.159` |
 
 Without a configured token, the demonstration screens remain available, but device proxy endpoints return `503 device_token_not_configured`.
 
@@ -98,13 +100,13 @@ Without a configured token, the demonstration screens remain available, but devi
 
 1. Follow the [Raspberry Pi deployment guide](raspberry_pi/DEPLOY.md) to start `hardware.py`.
 2. Use the same device token in the website's `.env.local` and the Pi's `.env`.
-3. Set the Pi's `MEDILENS_WEBSITE_ORIGINS` to both website origins, such as `http://210.240.160.148:3000,http://210.240.160.148:3001`.
-4. Set the Pi's `MEDILENS_BACKEND_UPLOAD_URL` to MedicServer, such as `http://210.240.160.148:8000/api/v1/verifications`.
+3. Set the Pi's `MEDILENS_WEBSITE_ORIGINS` to both website origins, such as `http://210.240.160.159:3000,http://210.240.160.159:3001`.
+4. Set the Pi's `MEDILENS_BACKEND_UPLOAD_URL` to MedicServer, such as `http://210.240.160.159:8000/api/v1/verifications`.
 5. Check both the Pi and MedicServer health endpoints before starting positioning and capture from the website.
 
 ```bash
 curl http://210.240.160.159:5000/api/v1/health
-curl http://210.240.160.148:8000/api/v1/health
+curl http://210.240.160.159:8000/api/v1/health
 ```
 
 The `210.240.160.x` addresses are examples from the current LAN and must be replaced with the actual host addresses. Camera 1 is always uploaded as `front_image`, and Camera 2 is always uploaded as `back_image`.

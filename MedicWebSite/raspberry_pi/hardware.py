@@ -34,7 +34,7 @@ CAPTURE_DIR = Path(os.getenv("MEDILENS_CAPTURE_DIR", str(CURRENT_DIR / "captures
 BACKEND_UPLOAD_URL = os.getenv("MEDILENS_BACKEND_UPLOAD_URL", "").strip()
 BACKEND_UPLOAD_TOKEN = os.getenv("MEDILENS_BACKEND_UPLOAD_TOKEN", "").strip()
 
-# Network: website/server 210.240.160.148 -> Raspberry Pi 210.240.160.159:5000
+# Network: website/server 210.240.160.159 -> Raspberry Pi 210.240.160.159:5000
 LISTEN_HOST = os.getenv("MEDILENS_LISTEN_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.getenv("MEDILENS_LISTEN_PORT", "5000"))
 WEBSITE_ORIGINS = {
@@ -43,7 +43,7 @@ WEBSITE_ORIGINS = {
         "MEDILENS_WEBSITE_ORIGINS",
         os.getenv(
             "MEDILENS_WEBSITE_ORIGIN",
-            "http://210.240.160.148:3000,http://210.240.160.148:3001",
+            "http://210.240.160.159:3000,http://210.240.160.159:3001",
         ),
     ).split(",")
     if origin.strip()

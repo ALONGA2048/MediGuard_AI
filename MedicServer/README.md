@@ -116,13 +116,13 @@ New-NetFirewallRule -DisplayName "MedicServer OCR API (LAN 8000)" -Direction Inb
 Test connectivity from the Raspberry Pi:
 
 ```bash
-curl http://210.240.160.148:8000/api/v1/health
+curl http://210.240.160.159:8000/api/v1/health
 ```
 
 Then configure the Pi's `MEDILENS_BACKEND_UPLOAD_URL` as:
 
 ```text
-http://210.240.160.148:8000/api/v1/verifications
+http://210.240.160.159:8000/api/v1/verifications
 ```
 
 The IP address above is an example from the current environment. Replace it with the actual backend host address.

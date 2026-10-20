@@ -11,7 +11,7 @@
     "dev:main": "node scripts/run-framework.mjs dev --port 3000 --hostname 0.0.0.0",
     "build": "node scripts/run-framework.mjs build",
     "start": "node scripts/run-dual.mjs start",
-    "start:main": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 0.0.0.0 --port 3000 --inspector-port 0",
+    "start:main": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --env-file .env --env-file .env.local --local --persist-to .wrangler/state --ip 0.0.0.0 --port 3000 --inspector-port 0",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
