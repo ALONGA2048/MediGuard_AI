@@ -5,6 +5,7 @@ Hardware currently expected:
 - Camera 1: /dev/video0 (Full HD source + low-bandwidth positioning stream)
 - Camera 2: /dev/video2 (Full HD paired capture)
 - WS2812B: GPIO18, indexes 0..64
+- LCD: user-tested ST7789 sequence, SPI0 CE0, DC25, RESET24, 320x240
 
 LED indexes 16..31 are reserved at a configured fixed RGB value. Normal light
 commands, shutdown, and failure cleanup never alter that reserved value.
@@ -74,6 +75,165 @@ LED_DMA = 10
 LED_INVERT = False
 LED_CHANNEL = 0
 LED_DRIVER_BRIGHTNESS = 255
+
+
+class SpiLcd:
+    """The user's hardware-tested ST7789 sequence, displayed once at startup.
+
+    Retain SPI/DC/RESET objects for the entire Flask process lifetime. There is
+    no LCD refresh thread, server-readiness poll, or post-display reset.
+    """
+
+    def __init__(self):
+        self.driver = "st7789"
+        self.state = {"enabled": False, "driver": self.driver, "status": "disabled", "error": None}
+        self.spi = None
+        self.dc = None
+        self.reset = None
+
+    def start(self):
+        if self.state["status"] == "ready":
+            return
+        if os.getenv("MEDILENS_LCD_ENABLED", "true").lower() not in {"1", "true", "yes", "on"}:
+            print("[LCD] disabled by MEDILENS_LCD_ENABLED", flush=True)
+            return
+        self.state.update(enabled=True, status="initializing", error=None)
+        try:
+            print("[LCD] 初始化 ST7789...", flush=True)
+            self._initialize()
+            url = os.getenv("MEDILENS_LCD_URL", "http://210.240.160.152:3001").strip()
+            print("[LCD] 建立 QR Code 畫面...", flush=True)
+            screen = self._qr_frame(url)
+            screen.save(CURRENT_DIR / "qrcode_preview.png")
+            print("[LCD] 顯示到 LCD...", flush=True)
+            self._display(screen)
+            self.state.update(status="ready")
+            print(f"[LCD] 顯示完成，保持畫面；QR: {url}", flush=True)
+        except Exception as error:
+            self.state.update(status="failed", error=f"{type(error).__name__}: {error}")
+            print(f"[LCD] display unavailable; camera API remains active: {error}", flush=True)
+            self._close()
+
+    def _command(self, value: int):
+        self.dc.off()
+        self.spi.writebytes([value])
+
+    def _data(self, values):
+        self.dc.on()
+        if isinstance(values, int):
+            values = [values]
+        self.spi.writebytes2(values)
+
+    def _initialize(self):
+        import spidev
+        from gpiozero import OutputDevice
+
+        dc_pin = int(os.getenv("MEDILENS_LCD_DC", "25"))
+        reset_pin = int(os.getenv("MEDILENS_LCD_RESET", "24"))
+        bus = int(os.getenv("MEDILENS_LCD_SPI_BUS", "0"))
+        device = int(os.getenv("MEDILENS_LCD_SPI_DEVICE", "0"))
+        if bus != 0 or device not in {0, 1}:
+            raise ValueError("LCD supports SPI0 CE0 or CE1")
+        if dc_pin == reset_pin or {dc_pin, reset_pin} & {LED_PIN, 7, 8, 9, 10, 11}:
+            raise ValueError("LCD DC/reset pins conflict with SPI or WS2812B wiring")
+        self.dc = OutputDevice(dc_pin)
+        self.reset = OutputDevice(reset_pin)
+        self.spi = spidev.SpiDev()
+        self.spi.open(bus, device)
+        self.spi.max_speed_hz = int(os.getenv("MEDILENS_LCD_SPI_HZ", "8000000"))
+        self.spi.mode = 0
+        self.spi.bits_per_word = 8
+
+        # Exact reset levels and delays from the supplied, working program.
+        self.reset.on()
+        time.sleep(0.05)
+        self.reset.off()
+        time.sleep(0.05)
+        self.reset.on()
+        time.sleep(0.15)
+        self._command(0x01)
+        time.sleep(0.15)
+        self._command(0x11)
+        time.sleep(0.12)
+        self._command(0x3A)
+        self._data([0x55])
+        self._command(0x36)
+        self._data([0x60])
+        self._command(0x20)  # Inversion OFF, as hardware-tested by the user
+        self._command(0x13)
+        self._command(0x29)
+        time.sleep(0.1)
+
+    def _set_window(self, x0, y0, x1, y1):
+        self._command(0x2A)
+        self._data([(x0 >> 8) & 0xFF, x0 & 0xFF, (x1 >> 8) & 0xFF, x1 & 0xFF])
+        self._command(0x2B)
+        self._data([(y0 >> 8) & 0xFF, y0 & 0xFF, (y1 >> 8) & 0xFF, y1 & 0xFF])
+        self._command(0x2C)
+
+    @staticmethod
+    def _qr_frame(url: str):
+        import qrcode
+        from PIL import Image, ImageDraw, ImageFont
+
+        image = Image.new("RGB", (320, 240), (0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        font_path = os.getenv("MEDILENS_LCD_FONT", "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
+        font = ImageFont.truetype(font_path, 24)
+        title = "掃描以下qrcode"
+        bbox = draw.textbbox((0, 0), title, font=font)
+        text_width = bbox[2] - bbox[0]
+        draw.text(((320 - text_width) // 2, 12), title, font=font, fill=(255, 255, 255))
+        qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M,
+                           box_size=6, border=3)
+        qr.add_data(url)
+        qr.make(fit=True)
+        qr_image = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+        qr_image = qr_image.resize((130, 130), Image.Resampling.NEAREST)
+        image.paste(qr_image, ((320 - 130) // 2, 60))
+        return image
+
+    @staticmethod
+    def _image_to_rgb565(image):
+        image = image.convert("RGB")
+        buffer = bytearray()
+        for r, g, b in image.getdata():
+            value = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+            buffer.append((value >> 8) & 0xFF)
+            buffer.append(value & 0xFF)
+        return buffer
+
+    def _display(self, image):
+        from PIL import Image
+
+        if image.size != (320, 240):
+            image = image.resize((320, 240), Image.Resampling.NEAREST)
+        print("[LCD] 轉換 RGB565...", flush=True)
+        buffer = self._image_to_rgb565(image)
+        print(f"[LCD] Framebuffer bytes: {len(buffer)}", flush=True)
+        self._set_window(0, 0, 319, 239)
+        self.dc.on()
+        for offset in range(0, len(buffer), 4096):
+            self.spi.writebytes2(buffer[offset:offset + 4096])
+        print("[LCD] LCD 顯示完成", flush=True)
+
+    def _close(self):
+        for name in ("spi", "dc", "reset"):
+            resource = getattr(self, name)
+            if resource is not None:
+                try:
+                    resource.close()
+                except Exception:
+                    pass
+                setattr(self, name, None)
+
+    def stop(self):
+        self._close()
+        if self.state["enabled"]:
+            self.state.update(status="stopped")
+
+
+lcd = SpiLcd()
 
 
 def _parse_rgb(value: str) -> tuple[int, int, int]:
@@ -343,7 +503,7 @@ def add_browser_headers(response):
 
 @app.route("/api/v1/health")
 def health():
-    return jsonify(success=True, service="medilens-hardware", device_id="medibox-01")
+    return jsonify(success=True, service="medilens-hardware", device_id="medibox-01", lcd=dict(lcd.state))
 
 
 @app.route("/api/v1/status")
@@ -360,6 +520,7 @@ def status():
         capture_fps=CAPTURE_FPS,
         jpeg_quality=CAPTURE_JPEG_QUALITY,
         focus={"camera1": CAMERA_1_FOCUS, "camera2": CAMERA_2_FOCUS},
+        lcd=dict(lcd.state),
     )
 
 
@@ -620,6 +781,7 @@ def commands():
 
 def cleanup():
     print("[Shutdown] closing cameras and controlled LEDs")
+    lcd.stop()
     try:
         camera_rig.stop()
     except Exception:
@@ -646,4 +808,8 @@ if __name__ == "__main__":
     print(f"Capture light: {FIXED_LIGHT_MODE.upper()} {FIXED_LIGHT_BRIGHTNESS}%")
     print(f"Camera 1: /dev/video{CAMERA_1_INDEX}; Camera 2: /dev/video{CAMERA_2_INDEX}")
     print("=" * 68)
-    app.run(host=LISTEN_HOST, port=LISTEN_PORT, threaded=True, debug=False, use_reloader=False)
+    lcd.start()
+    try:
+        app.run(host=LISTEN_HOST, port=LISTEN_PORT, threaded=True, debug=False, use_reloader=False)
+    finally:
+        lcd.stop()

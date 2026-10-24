@@ -1,0 +1,10 @@
+{
+  "id": "RX-DEMO-004",
+  "clinic": "MediGuard Demo",
+  "medicines": [
+    { "name": "REXULTI 1mg" },
+    { "name": "Theophyline anhydrous" },
+    { "name": "Exelon" },
+    { "name": "Flexer Extended-Release F.C. Tablets 15mg" }
+  ]
+}

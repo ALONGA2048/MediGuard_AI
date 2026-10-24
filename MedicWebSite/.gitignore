@@ -2,6 +2,10 @@
 
 # dependencies
 /node_modules
+
+# Raspberry Pi Python bytecode
+__pycache__/
+*.py[cod]
 /.pnp
 .pnp.*
 .yarn/*

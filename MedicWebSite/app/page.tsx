@@ -2,6 +2,7 @@
 
 import { Activity, Archive, ArrowRight, Bell, Camera, Check, ChevronDown, ChevronRight, CircleHelp, ClipboardList, Clock3, Download, FileJson2, FileText, History, Home, Info, Lightbulb, LogOut, Menu, PackageSearch, Pause, Pill, Play, Plus, QrCode, ScanLine, Search, Settings, ShieldCheck, SlidersHorizontal, Smartphone, Trash2, Upload, UserRound, Wifi, X } from "lucide-react";
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import PrescriptionVerification from "@/components/prescription-verification";
 import type { LucideIcon } from "lucide-react";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 
@@ -42,7 +43,7 @@ function Login({ onLogin }: { onLogin: () => void }) {
 function Shell({ onLogout }: { onLogout: () => void }) {
   const [view,setView]=useState<View>("dashboard"),[menu,setMenu]=useState(false),[importing,setImporting]=useState(false),[prescriptions,setPrescriptions]=useState(initialPrescriptions);
   function addPrescription(prescription:Prescription){setPrescriptions(current=>[prescription,...current]);setImporting(false);setView("prescriptions")}
-  return <div className="app-shell"><aside className={`sidebar ${menu ? "open" : ""}`}><div className="sidebar-logo"><Logo/><button className="icon-btn mobile-only" onClick={()=>setMenu(false)}><X/></button></div><nav><span className="nav-label">主要功能</span>{nav.map(n=><button key={n.id} className={view===n.id?"active":""} onClick={()=>{setView(n.id);setMenu(false)}}><n.icon/><span>{n.label}</span></button>)}<span className="nav-label second">系統</span><button className={view==="settings"?"active":""} onClick={()=>setView("settings")}><Settings/><span>系統設定</span></button><button><CircleHelp/><span>使用說明</span></button></nav><button className="profile" onClick={onLogout}><span className="avatar">林</span><span><strong>林怡君</strong><small>一般使用者</small></span><LogOut/></button></aside>{menu&&<button className="backdrop" onClick={()=>setMenu(false)}/>}<div className="workspace"><header className="topbar"><button className="icon-btn mobile-only" onClick={()=>setMenu(true)}><Menu/></button><div className="top-search"><Search/><input placeholder="搜尋藥品、藥單或紀錄…"/></div><div className="top-actions"><button className="icon-btn" aria-label="通知"><Bell/></button></div></header><main className="content">{view==="dashboard"&&<Dashboard go={setView} openImport={()=>setImporting(true)}/>} {view==="prescriptions"&&<Prescriptions prescriptions={prescriptions} openImport={()=>setImporting(true)}/>} {view==="drugs"&&<DrugLookup/>} {view==="device"&&<DeviceControl/>} {view==="records"&&<Records/>} {view==="settings"&&<SettingsPage/>}</main></div>{importing&&<ImportModal close={()=>setImporting(false)} onImport={addPrescription}/>}</div>;
+  return <div className="app-shell"><aside className={`sidebar ${menu ? "open" : ""}`}><div className="sidebar-logo"><Logo/><button className="icon-btn mobile-only" onClick={()=>setMenu(false)}><X/></button></div><nav><span className="nav-label">主要功能</span>{nav.map(n=><button key={n.id} className={view===n.id?"active":""} onClick={()=>{setView(n.id);setMenu(false)}}><n.icon/><span>{n.label}</span></button>)}<span className="nav-label second">系統</span><button className={view==="settings"?"active":""} onClick={()=>setView("settings")}><Settings/><span>系統設定</span></button><button><CircleHelp/><span>使用說明</span></button></nav><button className="profile" onClick={onLogout}><span className="avatar">林</span><span><strong>林怡君</strong><small>一般使用者</small></span><LogOut/></button></aside>{menu&&<button className="backdrop" onClick={()=>setMenu(false)}/>}<div className="workspace"><header className="topbar"><button className="icon-btn mobile-only" onClick={()=>setMenu(true)}><Menu/></button><div className="top-search"><Search/><input placeholder="搜尋藥品、藥單或紀錄…"/></div><div className="top-actions"><button className="icon-btn" aria-label="通知"><Bell/></button></div></header><main className="content">{view==="dashboard"&&<Dashboard go={setView} openImport={()=>setImporting(true)}/>} {view==="prescriptions"&&<Prescriptions prescriptions={prescriptions} openImport={()=>setImporting(true)}/>} {view==="drugs"&&<DrugLookup/>} {view==="device"&&<PrescriptionVerification onOverview={()=>setView("dashboard")}/>} {view==="records"&&<Records/>} {view==="settings"&&<SettingsPage/>}</main></div>{importing&&<ImportModal close={()=>setImporting(false)} onImport={addPrescription}/>}</div>;
 }
 
 function Title({ eyebrow, title, desc, action }: { eyebrow:string;title:string;desc:string;action?:ReactNode }) { return <div className="page-title"><div><span className="eyebrow-text">{eyebrow}</span><h1>{title}</h1><p>{desc}</p></div>{action}</div>; }
@@ -63,9 +64,6 @@ function InfoBlock({icon,title,text,warning}:{icon:ReactNode;title:string;text:s
 
 type CapturePhoto={cameraId:number;width:number;height:number;mimeType:string;url:string};
 type CaptureResult={captureId:string;capturedAt:string;camera1:CapturePhoto;camera2:CapturePhoto;backendUpload:{status:string;verificationStatusUrl?:string}};
-type RecognitionCandidate={rank?:number;name?:string;resolved_name?:string;folder_name?:string;confidence?:number;score?:number};
-type MedicServerResult={verification_id?:string;status?:string;outcome?:string;ocr_result?:{status?:string};yolo_result?:{prediction?:string;confidence?:number;candidates?:RecognitionCandidate[]};fused_result?:{final_prediction?:string;final_confidence?:number;decision_source?:string;decision_reason?:string;ocr_candidates?:RecognitionCandidate[]}};
-type RecognitionState={success?:boolean;captureId:string;status:"not_configured"|"queued"|"processing"|"completed"|"failed";updatedAt?:string;verificationId?:string;result?:MedicServerResult;error?:string};
 type TestLightMode="white"|"warm"|"uv";
 type StoredPhoto={cameraId:number;filename:string;blob:Blob;url:string};
 type StoredCapture={sequence:number;captureId:string;capturedAt:string;lightMode:TestLightMode;brightness:number;photos:StoredPhoto[]};
@@ -82,67 +80,6 @@ async function createZip(files:{name:string;blob:Blob;modifiedAt:Date}[]){
   for(const file of files){const name=encoder.encode(file.name),bytes=new Uint8Array(await file.blob.arrayBuffer()),checksum=crc32(bytes),stamp=zipTime(file.modifiedAt);const local=new ArrayBuffer(30),lv=new DataView(local);lv.setUint32(0,0x04034b50,true);lv.setUint16(4,20,true);lv.setUint16(6,0x0800,true);lv.setUint16(8,0,true);lv.setUint16(10,stamp.time,true);lv.setUint16(12,stamp.date,true);lv.setUint32(14,checksum,true);lv.setUint32(18,bytes.byteLength,true);lv.setUint32(22,bytes.byteLength,true);lv.setUint16(26,name.byteLength,true);lv.setUint16(28,0,true);const localRecord=new Blob([local,name,file.blob]);localRecords.push(localRecord);
     const central=new ArrayBuffer(46),cv=new DataView(central);cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);cv.setUint16(6,20,true);cv.setUint16(8,0x0800,true);cv.setUint16(10,0,true);cv.setUint16(12,stamp.time,true);cv.setUint16(14,stamp.date,true);cv.setUint32(16,checksum,true);cv.setUint32(20,bytes.byteLength,true);cv.setUint32(24,bytes.byteLength,true);cv.setUint16(28,name.byteLength,true);cv.setUint16(30,0,true);cv.setUint16(32,0,true);cv.setUint16(34,0,true);cv.setUint16(36,0,true);cv.setUint32(38,0,true);cv.setUint32(42,offset,true);const centralRecord=new Blob([central,name]);centralRecords.push(centralRecord);centralSize+=centralRecord.size;offset+=localRecord.size}
   const end=new ArrayBuffer(22),ev=new DataView(end);ev.setUint32(0,0x06054b50,true);ev.setUint16(4,0,true);ev.setUint16(6,0,true);ev.setUint16(8,files.length,true);ev.setUint16(10,files.length,true);ev.setUint32(12,centralSize,true);ev.setUint32(16,offset,true);ev.setUint16(20,0,true);return new Blob([...localRecords,...centralRecords,end],{type:"application/zip"})
-}
-
-function DeviceControl(){
-  const [busy,setBusy]=useState(false),[preview,setPreview]=useState(false),[photos,setPhotos]=useState<CaptureResult|null>(null),[recognition,setRecognition]=useState<RecognitionState|null>(null),[error,setError]=useState("");
-  const recognitionPoll=useRef(0);
-  const [previewSession,setPreviewSession]=useState(0);
-  const fixedLighting={lightMode:"white",brightness:85} as const;
-  useEffect(()=>()=>{recognitionPoll.current+=1},[]);
-  async function parseResponse(response:Response){const data=await response.json() as {success?:boolean;message?:string;error?:string;result?:CaptureResult};if(!response.ok||data.success===false)throw new Error(data.message||data.error||"樹莓派指令執行失敗");return data}
-  async function waitForRecognition(captureId:string,pollId:number){
-    for(let attempt=0;attempt<150;attempt+=1){
-      if(recognitionPoll.current!==pollId)return;
-      try{
-        const response=await fetch(`/api/v1/devices/medibox-01/captures/${captureId}/verification`,{cache:"no-store"});
-        const data=await response.json() as RecognitionState&{message?:string};
-        if(!response.ok||data.success===false)throw new Error(data.message||data.error||"無法取得辨識狀態");
-        if(recognitionPoll.current!==pollId)return;
-        setRecognition(data);
-        if(["completed","failed","not_configured"].includes(data.status))return;
-      }catch(e){
-        if(attempt===149&&recognitionPoll.current===pollId)setRecognition({captureId,status:"failed",error:e instanceof Error?e.message:String(e)});
-      }
-      await new Promise(resolve=>setTimeout(resolve,2000));
-    }
-    if(recognitionPoll.current===pollId)setRecognition({captureId,status:"failed",error:"辨識等待超過 5 分鐘，請確認 MedicServer 狀態。"});
-  }
-  async function startPositioning(){
-    if(busy)return;
-    recognitionPoll.current+=1;
-    setPhotos(null);
-    setRecognition(null);
-    setPreview(false);
-    setError("");
-    setBusy(true);
-    try{
-      const response=await fetch("/api/v1/devices/medibox-01/preview/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(fixedLighting),signal:AbortSignal.timeout(12_000)});
-      await parseResponse(response);
-      setPreviewSession(session=>session+1);
-      setPreview(true);
-    }catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}
-  }
-  async function cancelPositioning(){setError("");setBusy(true);try{const response=await fetch("/api/v1/devices/medibox-01/preview/stop",{method:"POST"});await parseResponse(response);setPreview(false)}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
-  async function takePhotos(){setBusy(true);setError("");try{const response=await fetch("/api/v1/devices/medibox-01/commands",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"capture",payload:fixedLighting})});const data=await parseResponse(response);if(!data.result)throw new Error("樹莓派未回傳照片資訊");setPreview(false);setPhotos(data.result);const captureId=data.result.captureId;const backendStatus=data.result.backendUpload.status as RecognitionState["status"];setRecognition({captureId,status:backendStatus});if(["queued","processing"].includes(backendStatus)){const pollId=recognitionPoll.current+1;recognitionPoll.current=pollId;void waitForRecognition(captureId,pollId)}}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
-  function photoUrl(cameraId:number){return photos?`/api/v1/devices/medibox-01/captures/${photos.captureId}/camera/${cameraId}`:""}
-  const serverResult=recognition?.result;
-  const finalPrediction=serverResult?.fused_result?.final_prediction||serverResult?.yolo_result?.prediction||"未辨識";
-  const finalConfidence=serverResult?.fused_result?.final_confidence??serverResult?.yolo_result?.confidence;
-  const candidates=serverResult?.yolo_result?.candidates?.length?serverResult.yolo_result.candidates:serverResult?.fused_result?.ocr_candidates||[];
-  const outcomeText=serverResult?.outcome==="MATCH"?"符合預期":serverResult?.outcome==="MISMATCH"?"與預期不符":serverResult?.outcome==="NEEDS_REVIEW"?"需要人工確認":serverResult?.outcome==="IDENTIFIED"?"已辨識":"辨識完成";
-  return <><Title eyebrow="MEDICATION IDENTIFICATION" title={photos?"辨識結果":"藥物辨識"} desc={photos?"請確認拍攝照片與系統辨識結果。":"將藥品放入暗箱，依畫面指示完成定位與拍攝。"}/>
-    <div className="capture-steps"><span className={!preview&&!photos?"active":"done"}><i>1</i>啟動辨識</span><b/><span className={preview?"active":photos?"done":""}><i>2</i>校準位置</span><b/><span className={photos?"active":""}><i>3</i>查看結果</span></div>
-    {!photos&&<div className="control-grid"><div className="camera-panel panel"><div className="camera-view"><div className="viewfinder"><i/><i/><i/><i/></div>{preview?<><img key={previewSession} className="camera-feed" src={`/api/v1/devices/medibox-01/preview/stream?session=${previewSession}`} alt="藥品定位畫面"/><span className="calibration-cross" aria-hidden="true"/></>:<div className="capture-idle"><span><ScanLine/></span><strong>準備開始辨識</strong><small>啟動後請將藥品放在畫面中央</small></div>}<span className="camera-label"><Camera/> 藥品定位畫面</span>{busy&&<div className="capturing"><ScanLine/><strong>{preview?"正在拍攝兩個角度…":"正在啟動辨識…"}</strong></div>}</div><div className="camera-footer"><span><i/> {preview?"定位中":"尚未啟動"}</span><span>{preview?"請將藥品置於紅色十字中央":"啟動後會顯示即時畫面"}</span></div></div>
-      <div className="control-panel panel"><Head kicker="GUIDED CAPTURE" title="拍攝指引" action={<Lightbulb/>}/><div className="fixed-capture-settings"><div><span className="fixed-light"><Lightbulb/></span><p><small>燈光</small><strong>固定白光，自動開啟</strong></p></div><div><span><Camera/></span><p><small>拍攝</small><strong>自動取得兩個角度</strong></p></div></div><div className="capture-guide"><span><b>1</b>將藥品平放在暗箱中央</span><span><b>2</b>對準畫面中的紅色十字</span><span><b>3</b>按下拍攝並等待辨識</span></div><div className="capture-actions">{!preview?<button className="capture-btn" onClick={startPositioning} disabled={busy}><ScanLine/> {busy?"啟動中…":"啟動辨識"}</button>:<><button className="capture-btn photo-now" onClick={takePhotos} disabled={busy}><Camera/> {busy?"拍攝中…":"拍攝並開始辨識"}</button><button className="cancel-capture" onClick={cancelPositioning} disabled={busy}>取消</button></>}<p className="safe-note"><ShieldCheck/> 拍攝完成後燈光會自動關閉</p></div></div></div>}
-    {error&&<div className="device-error"><Info/><span><strong>辨識操作失敗</strong>{error}</span></div>}
-    {photos&&<section className="recognition-stage"><div className="captured-head"><div><span className="section-kicker">IDENTIFICATION RESULT</span><h2>本次辨識結果</h2><p>以下為兩個拍攝角度與系統分析結果。</p></div><span className={`status ${recognition?.status==="completed"?"verified":recognition?.status==="failed"?"recognition-failed":"recognition-waiting"}`}>{recognition?.status==="completed"?<><Check/> 辨識完成</>:recognition?.status==="failed"?<><Info/> 辨識失敗</>:<><Activity/> 辨識中</>}</span></div><div className="captured-grid">{[photos.camera1,photos.camera2].map(photo=><article className="captured-photo panel" key={photo.cameraId}><div><img src={photoUrl(photo.cameraId)} alt={`藥品拍攝角度 ${photo.cameraId}`}/><span>角度 {photo.cameraId}</span></div><footer><strong>藥品照片・角度 {photo.cameraId}</strong></footer></article>)}</div>
-      {recognition&&["queued","processing"].includes(recognition.status)&&<div className="recognition-panel recognition-loading"><span><Activity/></span><div><strong>辨識中，請稍候…</strong><p>系統正在分析兩張照片，完成後會自動顯示結果。</p></div></div>}
-      {recognition?.status==="completed"&&<div className={`recognition-panel recognition-result ${serverResult?.outcome==="NEEDS_REVIEW"||serverResult?.outcome==="MISMATCH"?"review":"success"}`}><div className="recognition-summary"><div><span className="section-kicker">辨識藥品</span><h3>{finalPrediction}</h3><p>{outcomeText}</p></div>{typeof finalConfidence==="number"&&<strong>{(finalConfidence*100).toFixed(1)}<small>% 信心值</small></strong>}</div>{candidates.length>0&&<div className="recognition-candidates"><strong>其他可能結果</strong>{candidates.slice(0,3).map((candidate,index)=><span key={`${candidate.name||candidate.resolved_name||candidate.folder_name}-${index}`}><b>{index+1}</b>{candidate.resolved_name||candidate.name||candidate.folder_name||"未知藥品"}<em>{typeof (candidate.confidence??candidate.score)==="number"?`${((candidate.confidence??candidate.score??0)*100).toFixed(1)}%`:""}</em></span>)}</div>}</div>}
-      {recognition?.status==="failed"&&<div className="recognition-panel recognition-error"><Info/><div><strong>辨識未完成</strong><p>{recognition.error||"請確認服務狀態後再次辨識；本次照片仍已保留。"}</p></div></div>}
-      {recognition?.status==="not_configured"&&<div className="recognition-panel recognition-error"><Info/><div><strong>辨識服務尚未啟用</strong><p>照片已保存，請聯絡系統管理人員確認設定。</p></div></div>}
-      <button className="primary-btn continue-recognition" onClick={startPositioning} disabled={busy}><ScanLine/> {busy?"啟動中…":"繼續辨識"}</button></section>}
-  </>;
 }
 
 function TestCapture(){
@@ -175,7 +112,7 @@ function TestCapture(){
   </>;
 }
 
-function TesterPortal(){const [mode,setMode]=useState<"recognition"|"capture">("recognition");return <div className="tester-shell"><header className="tester-header"><Logo/><div><span className="tester-badge">測試人員介面</span><span className="tester-port">PORT 3001</span></div></header><nav className="tester-tabs"><button className={mode==="recognition"?"active":""} onClick={()=>setMode("recognition")}><ScanLine/>辨識流程</button><button className={mode==="capture"?"active":""} onClick={()=>setMode("capture")}><Camera/>拍照測試</button></nav><main className="tester-content">{mode==="recognition"?<DeviceControl/>:<TestCapture/>}</main></div>}
+function TesterPortal(){const [mode,setMode]=useState<"recognition"|"capture">("recognition");return <div className="tester-shell"><header className="tester-header"><Logo/><div><span className="tester-badge">測試人員介面</span><span className="tester-port">PORT 3001</span></div></header><nav className="tester-tabs"><button className={mode==="recognition"?"active":""} onClick={()=>setMode("recognition")}><ScanLine/>辨識流程</button><button className={mode==="capture"?"active":""} onClick={()=>setMode("capture")}><Camera/>拍照測試</button></nav><main className="tester-content">{mode==="recognition"?<PrescriptionVerification/>:<TestCapture/>}</main></div>}
 
 function Records(){return <><Title eyebrow="RECOGNITION HISTORY" title="辨識紀錄" desc="檢視暗箱拍攝結果與每次辨識的候選藥品。"/><div className="record-grid">{drugs.map((d,i)=><div className="record-card panel" key={d.name}><div className={`record-image r${i}`}><Pill/><span>IMG_10{42-i}.JPG</span></div><div className="record-body"><span className="status verified"><Check/> 已確認</span><strong>{d.name}</strong><small>{d.ingredient}</small><div><span><Clock3/> {i?`10/0${8-i} 18:21`:"今天 09:42"}</span><span>信心值 {96-i*2}.8%</span></div></div></div>)}</div></>}
 function SettingsPage(){return <><Title eyebrow="SETTINGS" title="系統設定" desc="管理帳號、裝置連線與通知偏好。"/><div className="settings-grid">{settingItems.map(({icon:Icon,title,description})=><button className="panel settings-card" key={title}><span className="setting-icon"><Icon/></span><div><h2>{title}</h2><p>{description}</p></div><ChevronRight/></button>)}</div></>}

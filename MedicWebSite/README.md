@@ -12,7 +12,7 @@ MedicWebSite is the user interface and device proxy layer for MediGuard AI. It p
 - Medication search with ingredients, indications, license information, and precautions.
 - Low-bandwidth Camera 1 positioning preview, red center crosshair, and synchronized high-resolution dual-camera capture.
 - Same-origin website APIs that proxy the Raspberry Pi without exposing the device token to the browser.
-- Original image display, processing state, and fused OCR/YOLO results after capture.
+- Prescription verification: scan a prescription QR code, position each medicine in Cam1, and mark matching items in the checklist. All items must match before the success screen appears.
 - Dual entry points from one startup command: the full site on port `3000` and a focused tester interface on port `3001`.
 - Tester-only local capture mode with selectable light color/brightness and direct browser-folder saving without a MedicServer upload.
 - Recognition history, device status, and system settings screens.
@@ -39,6 +39,25 @@ Browser
 ```
 
 The website polls the Pi's `verification.json` for the active capture every two seconds, for up to five minutes. The Raspberry Pi API token exists only in server-side website environment variables.
+
+## Prescription Verification Demo
+
+Open **藥物辨識 → 啟動辨識**, allow the browser camera, and scan `public/demo-prescription.png`. You can also choose **開啟手機相機拍照掃碼** to open the phone camera or **選擇藥單圖片** to decode the QR from a file. Confirm the captured photo to import its QR. Native capture availability depends on the mobile browser; if an in-app browser does not open the camera, use Safari/Chrome or select an existing photo. The QR contains the complete JSON prescription and does not depend on an external URL.
+
+Live browser camera access requires a secure context (trusted HTTPS, or localhost on the same device). A phone opening `http://<computer-IP>:3000` is not a secure context: the browser blocks live camera access without showing a permission prompt. The scanner detects this before starting the camera and explains the photo/image alternatives. A denied permission, unavailable camera, and occupied camera each display different recovery guidance, with a retry button after changing settings. The live camera is released when choosing photo capture to avoid occupying the phone camera. Changing allowed origins does not enable camera access on HTTP; to enable live scanning, serve the site via HTTPS with a certificate trusted by the phone.
+
+After import, the desktop layout shows Cam1 and the recognition button on the left, with the prescription checklist on the right (stacked on mobile). Open Cam1, position one medicine, and press **辨識並核對**. The website uses the completed fused prediction to check an exact normalized name; case, spaces, and separator punctuation may differ, but strengths and formulation words must match. It does not mark candidates, unknown/review outcomes, drugs outside the prescription, or already checked drugs. **繼續辨識** opens Cam1 for the next medicine. All four checks lead to **核對成功！ → 返回總覽**. Captured photos and predicted names are not displayed in this flow. The separate port 3001 photo testing tool still displays its captures.
+
+The demonstration preserves the requested names verbatim: REXULTI 1mg, Theophyline anhydrous, Exelon, and Flexer Extended-Release F.C. Tablets 15mg. `examples/demo-prescription.json` is the source for both the printed list and QR. This is a test document without medical dosing instructions.
+
+Regenerate the PNG with Node and Python/Pillow, and validate parsing, matching, duplicates, wrong strengths, and QR decoding:
+
+```powershell
+node scripts/generate-demo-prescription.mjs | python scripts/render-demo-prescription.py
+node --test scripts/prescription-check.test.mjs
+```
+
+Set `PYTHON` to a Python executable if it is not on PATH when running the tests. The renderer currently uses Windows Microsoft JhengHei fonts.
 
 ## Technology and Directory Layout
 
