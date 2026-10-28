@@ -73,9 +73,6 @@ OCR_OUTPUT_MIN_CONFIDENCE = 0.45
 OCR_USE_GPU = os.getenv("PADDLE_OCR_USE_GPU", "0").strip() == "1"
 OCR_ENABLE_MKLDNN = False
 OCR_CPU_THREADS = max(1, min(4, os.cpu_count() or 1))
-# The IR optimizer caused SIGILL on the Docker CPU runtime. It is safe and
-# materially faster on the CUDA runtime, so enable it only for GPU inference.
-OCR_IR_OPTIM = OCR_USE_GPU
 
 # 640x480 的文字太小，先把長邊放大到約 1920；高解析圖片不再額外放大。
 OCR_TARGET_LONG_SIDE = 1920
@@ -103,7 +100,10 @@ USE_AI_SUPER_RESOLUTION = False
 # Expensive angle search is a database-failure fallback, not the normal OCR
 # path. The zero-degree ROI candidate is retained so cropping/upscaling can
 # help without forcing a rotation. Negative values are clockwise in OpenCV.
-ANGLE_FALLBACK_ANGLES = (0, -45, -60, -75, 45, 60, 75, -90, 90)
+# The normal OCR pass already covers the unrotated image (and its 180-degree
+# counterpart).  Keeping 0 here repeated the exact same direction during the
+# expensive fallback sweep.
+ANGLE_FALLBACK_ANGLES = (-45, -60, -75, 45, 60, 75, -90, 90)
 ANGLE_FALLBACK_TOP_ENGLISH = 3
 ANGLE_FALLBACK_MIN_SCORE_GAIN = 3.0
 ANGLE_FALLBACK_MIN_VALID_CHAR_GAIN = 4
@@ -231,8 +231,8 @@ def load_ocr_engines() -> Tuple[PaddleOCR, Optional[PaddleOCR]]:
         lang=TRADITIONAL_LANGUAGE,
         ocr_version=TRADITIONAL_OCR_VERSION,
         use_gpu=OCR_USE_GPU,
-        ir_optim=OCR_IR_OPTIM,
         enable_mkldnn=OCR_ENABLE_MKLDNN,
+        ir_optim=False,  # Preserve the Server's patched PaddleOCR CPU compatibility.
         cpu_threads=OCR_CPU_THREADS,
         det_limit_side_len=OCR_DET_LIMIT_SIDE_LEN,
         det_limit_type="max",
@@ -252,8 +252,8 @@ def load_ocr_engines() -> Tuple[PaddleOCR, Optional[PaddleOCR]]:
             lang=ENGLISH_LANGUAGE,
             ocr_version=ENGLISH_OCR_VERSION,
             use_gpu=OCR_USE_GPU,
-            ir_optim=OCR_IR_OPTIM,
             enable_mkldnn=OCR_ENABLE_MKLDNN,
+            ir_optim=False,
             cpu_threads=OCR_CPU_THREADS,
             det_limit_side_len=OCR_DET_LIMIT_SIDE_LEN,
             det_limit_type="max",

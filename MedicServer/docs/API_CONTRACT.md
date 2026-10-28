@@ -42,6 +42,25 @@ The endpoint is synchronous because the current UI begins one identification at 
 
 The UI must not turn `NEEDS_REVIEW` into an automatic match. Keep the decision source, candidates and both images visible to a human reviewer.
 
+## OOD pipeline (v2)
+
+Every request runs Pair-YOLO/OOD before OCR, including exact identifier matches. The existing request fields, HTTP 201 response envelope and `outcome` values remain supported.
+
+`yolo_result` additionally contains `ood_status`, `ood_decision` (`PASS`/`REJECT`), `ood_score`, `ood_threshold` (`0.7981438636779785`), `ood_method` (`cosine_knn1`), `ood_nearest_pair_id`, `ood_nearest_label`, timing fields and `pair_forward_count` (`1`). Classification and OOD share that single forward.
+
+`fused_result` retains `final_prediction`, `final_confidence`, `decision_source`, `decision_reason` and adds:
+
+| Field | Values / meaning |
+| --- | --- |
+| `recognition_status` | `KNOWN_DRUG`, `NON_DRUG`, `UNKNOWN_DRUG`, `UNRECOGNIZED` |
+| `ood_gate_final_decision` | `PASS`, `REJECT`, `OVERRIDDEN` |
+| `ood_override_status` | `NOT_APPLICABLE`, `NOT_OVERRIDDEN`, `OVERRIDDEN_BY_OCR_YOLO_AGREEMENT` |
+| `ood_reject_override` | On raw OOD rejection: OCR/YOLO names, confidence, override threshold, allowed flag and reason |
+
+`score < threshold` is a raw OOD rejection; equality passes. A raw rejection still runs OCR/database. It can be overridden only when OCR status is `EXACT_ID`, `MATCHED` or `NAME_ONLY_UNIQUE`, its canonical product agrees with Pair-YOLO, and YOLO confidence is at least `FINAL_THRESHOLD` (default `0.95`). Otherwise the final name is `unknown`, recognition status is `NON_DRUG` and outcome is `NEEDS_REVIEW`.
+
+On OOD pass, a reliable barcode/license absent from the catalog produces `UNKNOWN_DRUG`/`NEEDS_REVIEW`, even when YOLO is confident. Remaining cases use upstream `YOLO_STAGE.hybrid_decision` with cached classification. Missing/invalid OOD evidence, worker errors and OCR/database errors fail the job with HTTP 500; they cannot fall back to an exact OCR match or a YOLO-only match. OOD fields persist inside the existing JSONB result columns and result JSON file; no database migration is required.
+
 ## History
 
 `GET /api/v1/verifications?limit=50&offset=0` returns newest-first summaries. `GET /api/v1/verifications/{id}` returns the stored job, image metadata, and complete JSON result. Each image metadata object includes a same-service `url`.

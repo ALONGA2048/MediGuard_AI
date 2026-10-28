@@ -21,6 +21,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 from PIL import Image
@@ -331,6 +332,67 @@ def image_to_tensor(
     )
 
 
+def bgr_array_to_tensor(
+    image: np.ndarray,
+    transform,
+    device: torch.device,
+) -> torch.Tensor:
+    """Convert an in-memory uint8 BGR frame without mutating the source."""
+    if not isinstance(image, np.ndarray):
+        raise TypeError(f"Expected numpy.ndarray, got {type(image)}")
+    if image.dtype != np.uint8:
+        raise ValueError(f"Expected uint8 frame, got {image.dtype}")
+    if image.ndim != 3 or image.shape[2] != 3:
+        raise ValueError(f"Expected HxWx3 BGR frame, got {image.shape}")
+
+    # Negative-stride RGB views are not accepted reliably by PIL/torchvision;
+    # this copy is the model's private working image.  The camera frame stays
+    # full-resolution BGR and is never resized or modified in place.
+    rgb = image[:, :, ::-1].copy()
+    tensor = transform(Image.fromarray(rgb))
+    return tensor.unsqueeze(0).to(device, non_blocking=True)
+
+
+def logits_to_prediction(
+    logits: torch.Tensor,
+    classes: List[str],
+    top_k: int = 5,
+) -> Dict[str, Any]:
+    """Turn one pair-logit tensor into the established prediction schema."""
+    if logits.ndim != 2 or logits.shape[0] != 1:
+        raise ValueError(f"Expected logits shape [1,C], got {tuple(logits.shape)}")
+    if logits.shape[1] != len(classes):
+        raise ValueError(
+            f"Logit count {logits.shape[1]} != class count {len(classes)}"
+        )
+
+    probabilities = torch.softmax(logits, dim=1)
+    actual_top_k = min(max(1, int(top_k)), len(classes))
+    top_confidences, top_indices = torch.topk(
+        probabilities[0], k=actual_top_k
+    )
+    candidates = []
+    for rank, (index_tensor, confidence_tensor) in enumerate(
+        zip(top_indices, top_confidences), start=1
+    ):
+        class_index = int(index_tensor.item())
+        candidates.append(
+            {
+                "rank": rank,
+                "class_id": class_index,
+                "name": classes[class_index],
+                "confidence": float(confidence_tensor.item()),
+            }
+        )
+    best = candidates[0]
+    return {
+        "prediction": best["name"],
+        "class_id": best["class_id"],
+        "confidence": best["confidence"],
+        "candidates": candidates,
+    }
+
+
 # ============================================================
 # Load complete Pair model
 # ============================================================
@@ -438,6 +500,14 @@ def load_pair_model(
 
     yolo_model = yolo_model.to(device).eval()
     pair_head = pair_head.to(device).eval()
+    # Keep inference models frozen; historical feature-analysis tools may also
+    # reuse this exact trained Pair representation.
+    # Explicitly disable gradients so training a downstream head can never
+    # update the existing YOLO or Pair checkpoint parameters.
+    for parameter in yolo_model.parameters():
+        parameter.requires_grad_(False)
+    for parameter in pair_head.parameters():
+        parameter.requires_grad_(False)
 
     imgsz = int(checkpoint.get("imgsz", 640))
 
@@ -632,16 +702,127 @@ class PairYoloPredictor:
             "time_ms": elapsed_ms,
         }
 
+    @torch.inference_mode()
+    def predict_arrays(
+        self,
+        cam0_bgr: np.ndarray,
+        cam1_bgr: np.ndarray,
+        top_k: int = 5,
+    ) -> Dict[str, Any]:
+        """Classify two in-memory BGR frames with one Pair forward pass."""
+        cam0 = bgr_array_to_tensor(cam0_bgr, self.transform, self.device)
+        cam1 = bgr_array_to_tensor(cam1_bgr, self.transform, self.device)
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
+        import time
+        started = time.perf_counter()
+        logits = pair_forward(self.yolo_model, self.pair_head, cam0, cam1)
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
+        prediction = logits_to_prediction(logits, self.classes, top_k=top_k)
+        prediction.update({
+            "time_ms": (time.perf_counter() - started) * 1000.0,
+            "processing_resolution": [self.imgsz, self.imgsz],
+        })
+        return prediction
+
+    @torch.inference_mode()
+    def predict_arrays_with_features(
+        self,
+        cam0_bgr: np.ndarray,
+        cam1_bgr: np.ndarray,
+        top_k: int = 5,
+    ) -> Dict[str, Any]:
+        """Legacy research API: return Pair logits and hidden feature together."""
+        cam0 = bgr_array_to_tensor(cam0_bgr, self.transform, self.device)
+        cam1 = bgr_array_to_tensor(cam1_bgr, self.transform, self.device)
+
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
+        import time
+        started = time.perf_counter()
+        logits, hidden = pair_forward(
+            self.yolo_model,
+            self.pair_head,
+            cam0,
+            cam1,
+            return_features=True,
+        )
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+
+        prediction = logits_to_prediction(logits, self.classes, top_k=top_k)
+        prediction.update(
+            {
+                "time_ms": elapsed_ms,
+                "pair_logits": logits[0].detach().cpu().numpy(),
+                "pair_feature": hidden[0].detach().cpu().numpy(),
+                "processing_resolution": [self.imgsz, self.imgsz],
+            }
+        )
+        return prediction
+
+    @torch.inference_mode()
+    def predict_array_batch_with_features(
+        self,
+        cam0_images: List[np.ndarray],
+        cam1_images: List[np.ndarray],
+        top_k: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Extract a batch with one shared frozen Pair forward."""
+        if len(cam0_images) != len(cam1_images) or not cam0_images:
+            raise ValueError("cam0/cam1 batches must be non-empty and equal length")
+        cam0 = torch.cat([
+            bgr_array_to_tensor(image, self.transform, self.device)
+            for image in cam0_images
+        ], dim=0)
+        cam1 = torch.cat([
+            bgr_array_to_tensor(image, self.transform, self.device)
+            for image in cam1_images
+        ], dim=0)
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
+        import time
+        started = time.perf_counter()
+        logits, hidden = pair_forward(
+            self.yolo_model,
+            self.pair_head,
+            cam0,
+            cam1,
+            return_features=True,
+        )
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        per_pair_ms = elapsed_ms / len(cam0_images)
+        results = []
+        for index in range(len(cam0_images)):
+            prediction = logits_to_prediction(
+                logits[index:index + 1], self.classes, top_k=top_k
+            )
+            prediction.update({
+                "time_ms": per_pair_ms,
+                "batch_forward_time_ms": elapsed_ms,
+                "pair_logits": logits[index].detach().cpu().numpy(),
+                "pair_feature": hidden[index].detach().cpu().numpy(),
+                "processing_resolution": [self.imgsz, self.imgsz],
+            })
+            results.append(prediction)
+        return results
+
 
 __all__ = [
     "PairFusionHead",
     "PairYoloPredictor",
+    "bgr_array_to_tensor",
     "build_pair_head",
     "configure_yolo_classes",
     "get_classify_head",
     "get_raw_yolo_logits",
     "image_to_tensor",
     "load_pair_model",
+    "logits_to_prediction",
     "make_eval_transform",
     "pair_forward",
     "predict_pair",

@@ -1,0 +1,34 @@
+{
+  "format_version": 1,
+  "method": "cosine_knn1",
+  "threshold": 0.7981438636779785,
+  "reject_rule": "score < threshold",
+  "feature_bank": "artifacts/feature_bank.npz",
+  "pair_checkpoint": "models/best_pair.pt",
+  "base_model": "models/best.pt",
+  "sha256": {
+    "feature_bank": "b42c84687eb85583af9f1e9e6f6898cee7f4e28278488b3b4d69c4e28ba94b90",
+    "pair_checkpoint": "9860e6d8b379ba7e455ce1e29b0a56dae13cb8b83359403c16d4cd57f4ad9b23",
+    "base_model": "c20a825b92dbb021d4c9155b01829bd5e6a1e11b0fe2707c484bca6fa3e3aebb"
+  },
+  "expected": {
+    "model_type": "yolo11_cls_pair_classifier",
+    "checkpoint_format": 2,
+    "num_classes": 119,
+    "image_size": 640,
+    "camera_order": ["cam0", "cam1"],
+    "feature_source": "logits",
+    "pair_input_dim": 238,
+    "pair_hidden_dim": 256,
+    "transform": "Resize((640,640))->ToTensor",
+    "bank_rows": 1046
+  },
+  "provenance": {
+    "source_project": "OOD_test",
+    "source_bank": "results/feature_bank.npz",
+    "calibration_artifact": "results/method_summary.csv",
+    "calibration_split": "known_cal",
+    "known_calibration_pairs": 345,
+    "unknown_and_non_drug_used_for_threshold_selection": false
+  }
+}

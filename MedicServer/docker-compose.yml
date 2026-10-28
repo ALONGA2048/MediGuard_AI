@@ -26,8 +26,8 @@ services:
     restart: unless-stopped
     environment:
       YOLO_DEVICE: ${YOLO_DEVICE:-cpu}
-      PAIR_CHECKPOINT: /models/best_pair.pt
-      YOLO_BASE_MODEL: /models/yolo_best.pt
+      OOD_CONFIG: /app/legacy/ood_filter/config.json
+    shm_size: 1gb
     expose:
       - "8001"
     healthcheck:
@@ -54,8 +54,10 @@ services:
       FINAL_THRESHOLD: ${FINAL_THRESHOLD:-0.95}
       OCR_BASIC_SCORE: ${OCR_BASIC_SCORE:-50.0}
       OCR_TIE_GAP: ${OCR_TIE_GAP:-8.0}
+      OCR_SUPPORTED_YOLO_THRESHOLD: ${OCR_SUPPORTED_YOLO_THRESHOLD:-0.60}
       UPLOAD_ROOT: /data/uploads
       RESULT_ROOT: /data/results
+    shm_size: 1gb
     ports:
       # Explicitly publish the API on every host interface so Raspberry Pi and
       # other devices on the 210.240.160.0/24 LAN can reach it.

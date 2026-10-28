@@ -2,6 +2,7 @@
 .env
 data
 tests
+.test-deps
 **/__pycache__
 **/*.pyc
 

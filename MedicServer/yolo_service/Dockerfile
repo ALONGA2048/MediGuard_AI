@@ -16,7 +16,8 @@ RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 
     && pip install --no-cache-dir -r /app/requirements.txt
 COPY yolo_service/app /app/app
 COPY yolo_service/legacy /app/legacy
-COPY models /models
+COPY models/best_pair.pt /app/legacy/ood_filter/models/best_pair.pt
+COPY models/yolo_best.pt /app/legacy/ood_filter/models/best.pt
 
 RUN useradd --create-home --uid 10001 appuser \
     && mkdir -p /tmp/ultralytics \

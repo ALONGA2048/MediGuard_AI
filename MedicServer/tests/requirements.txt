@@ -1,0 +1,8 @@
+# Lightweight offline tests: no Torch/Paddle model runtime or database server.
+fastapi==0.115.12
+httpx==0.28.1
+python-multipart==0.0.20
+psycopg2-binary==2.9.10
+numpy==1.26.4
+Pillow==11.2.1
+PyYAML==6.0.2

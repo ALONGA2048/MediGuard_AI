@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 from PIL import Image, UnidentifiedImageError
 
 from . import storage
-from .fusion import fuse_results, verification_outcome
+from .fusion import fuse_results, validate_ood_result, verification_outcome
 
 UPLOAD_ROOT = Path(os.getenv("UPLOAD_ROOT", "/data/uploads"))
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "20")) * 1024 * 1024
@@ -78,7 +78,7 @@ async def lifespan(app: FastAPI):
         repository.close()
 
 
-app = FastAPI(title="Medic OCR + YOLO Verification API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Medic OCR + Pair-YOLO/OOD Verification API", version="2.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("CORS_ORIGINS", "*").split(","), allow_methods=["GET", "POST"], allow_headers=["*"])
 
 
@@ -126,7 +126,7 @@ async def run_yolo(front: Path, back: Path) -> dict[str, Any]:
         response.raise_for_status()
         return response.json()
     except Exception as error:
-        return {"error": f"{type(error).__name__}: {error}", "prediction": "", "confidence": 0.0, "candidates": []}
+        raise RuntimeError(f"Pair-YOLO/OOD inference failed: {type(error).__name__}: {error}") from error
 
 
 @app.get("/api/v1/health")
@@ -154,15 +154,20 @@ async def verify_pair(
     back, back_meta = await save_upload(back_image, "back", pair_directory)
     try:
         expected_drug_id, expected_name = await asyncio.to_thread(storage.resolve_expected, expected_drug_id, expected_name)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    try:
         await asyncio.to_thread(storage.create_job, verification_id, expected_drug_id, expected_name, [front_meta, back_meta])
         async with app.state.inference_lock:
+            yolo_result = await run_yolo(front, back)
+            validate_ood_result(yolo_result)
             ocr_result = json_safe(await asyncio.to_thread(run_ocr, app, front, back, verification_id))
-            yolo_result = {"skipped": True, "reason": "OCR_EXACT_ID"} if str(ocr_result.get("status", "")).upper() == "EXACT_ID" else await run_yolo(front, back)
         fused = fuse_results(
             ocr_result, yolo_result,
             final_threshold=float(os.getenv("FINAL_THRESHOLD", "0.95")),
             ocr_basic_score=float(os.getenv("OCR_BASIC_SCORE", "50.0")),
             ocr_tie_gap=float(os.getenv("OCR_TIE_GAP", "8.0")),
+            ocr_supported_yolo_threshold=float(os.getenv("OCR_SUPPORTED_YOLO_THRESHOLD", "0.60")),
         )
         outcome = verification_outcome(str(fused.get("final_prediction") or "unknown"), expected_name)
         payload = {"verification_id": str(verification_id), "status": "COMPLETED", "outcome": outcome,
@@ -171,8 +176,6 @@ async def verify_pair(
         result_file = await asyncio.to_thread(storage.result_document, verification_id, payload)
         await asyncio.to_thread(storage.complete_job, verification_id, outcome, fused, ocr_result, yolo_result, result_file)
         return payload
-    except ValueError as error:
-        raise HTTPException(422, str(error)) from error
     except Exception as error:
         try:
             await asyncio.to_thread(storage.fail_job, verification_id, f"{type(error).__name__}: {error}")

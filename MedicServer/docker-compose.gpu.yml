@@ -1,4 +1,17 @@
 services:
+  yolo:
+    build:
+      context: .
+      dockerfile: yolo_service/Dockerfile.gpu
+    environment:
+      YOLO_DEVICE: ${YOLO_GPU_DEVICE:-cuda:0}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
   ocr:
     build:
       context: .

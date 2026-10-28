@@ -27,6 +27,35 @@ def should_adopt_angle_fallback(baseline_match, fallback_match):
     )
 
 
+def _observation_signature(observation):
+    """Return a stable identity for OCR evidence already sent to matching."""
+    texts = {
+        str(item.get("normalized") or item.get("text") or "").strip().casefold()
+        for item in observation.get("text_evidence", [])
+        if str(item.get("normalized") or item.get("text") or "").strip()
+    }
+    barcodes = {
+        str(value).strip().casefold()
+        for value in observation.get("barcodes", [])
+        if str(value).strip()
+    }
+    return tuple(sorted(texts)), tuple(sorted(barcodes))
+
+
+def _has_confirmed_identifier_absence(matched):
+    """True only for a reliable barcode/license that the DB cannot resolve."""
+    if str(matched.get("status", "")).upper() not in {"UNKNOWN", "CONFLICT"}:
+        return False
+    sources = matched.get("identifier_sources") or []
+    not_found = any(
+        source.get("type") in {"BARCODE", "LICENSE"}
+        and str(source.get("status", "")).endswith("DB_NOT_FOUND")
+        for source in sources
+    )
+    has_match = any(source.get("database_match") for source in sources)
+    return not_found and not has_match
+
+
 def _infer_pair_paths(paths, engines, matcher):
     total_started = time.perf_counter_ns()
     load_started = time.perf_counter_ns()
@@ -69,7 +98,11 @@ def infer_pair_frames(frames, labels, engines, matcher, total_started=None, imag
         # Successful pairs never pay for the expensive angle sweep. For a
         # failed database decision, retry the most text-like side first while
         # preserving the normal result and the original barcode fields.
-        if matched.get("status") not in SUCCESS_STATUSES:
+        if (
+            matched.get("status") not in SUCCESS_STATUSES
+            and not _has_confirmed_identifier_absence(matched)
+        ):
+            seen_observations = {_observation_signature(observation)}
             ranked_indices = sorted(
                 (index for index, result in enumerate(results) if result is not None),
                 key=lambda index: ocr.ocr_text_quality(
@@ -92,6 +125,15 @@ def infer_pair_frames(frames, labels, engines, matcher, total_started=None, imag
                 candidate_results = list(results)
                 candidate_results[index] = fallback_photo
                 candidate_observation = build_observation(candidate_results)
+                signature = _observation_signature(candidate_observation)
+                if signature in seen_observations:
+                    base_photo["angle_fallback"] = {
+                        **fallback_photo["angle_fallback"],
+                        "adopted": False,
+                        "reason": "duplicate OCR evidence; database match skipped",
+                    }
+                    continue
+                seen_observations.add(signature)
                 candidate_match = matcher.match(candidate_observation)
                 if not should_adopt_angle_fallback(baseline_match, candidate_match):
                     base_photo["angle_fallback"] = {

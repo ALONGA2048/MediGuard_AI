@@ -1,0 +1,205 @@
+{
+  "source_project": "drug-project",
+  "commit": "9987e9347360a326cbde4c905ba918001eb28f5c",
+  "date": "2026-10-24",
+  "source_file_count": 40,
+  "notes": [
+    "ocr.py preserves Server ir_optim=False compatibility",
+    "barcode_pipeline.py is a Server-authored replacement for an absent upstream module",
+    "Existing model hashes match upstream artifacts; Docker renames base model to best.pt"
+  ],
+  "deployed_files": [
+    {
+      "source": "drug_matching/__init__.py",
+      "destination": "ocr_service/legacy/drug_matching/__init__.py",
+      "source_sha256": "30b53fa0162c3ec0a9c445619f06f45520b9b476a8a7b1ce0b1abdbd5bafa234",
+      "deployed_sha256": "30b53fa0162c3ec0a9c445619f06f45520b9b476a8a7b1ce0b1abdbd5bafa234"
+    },
+    {
+      "source": "drug_matching/identifiers.py",
+      "destination": "ocr_service/legacy/drug_matching/identifiers.py",
+      "source_sha256": "5509d6d07d2f4893578257ac7cd74dfed102a8bb6b2dc8076eb11bbf2057ad60",
+      "deployed_sha256": "5509d6d07d2f4893578257ac7cd74dfed102a8bb6b2dc8076eb11bbf2057ad60"
+    },
+    {
+      "source": "drug_matching/license_extractor.py",
+      "destination": "ocr_service/legacy/drug_matching/license_extractor.py",
+      "source_sha256": "83d889d0c1fc4fe48ab8664bfae5d92af719c2d84063a66776968c14e1c7d6a6",
+      "deployed_sha256": "83d889d0c1fc4fe48ab8664bfae5d92af719c2d84063a66776968c14e1c7d6a6"
+    },
+    {
+      "source": "drug_matching/matcher.py",
+      "destination": "ocr_service/legacy/drug_matching/matcher.py",
+      "source_sha256": "b71ca41f3a82c099a56340840bba804c918d5d54e834a4772a559f41fc130dea",
+      "deployed_sha256": "b71ca41f3a82c099a56340840bba804c918d5d54e834a4772a559f41fc130dea"
+    },
+    {
+      "source": "drug_matching/normalization.py",
+      "destination": "ocr_service/legacy/drug_matching/normalization.py",
+      "source_sha256": "6a969165e10f7aefef75593cb49c911471689e606e49443a41cc7a200a39a88e",
+      "deployed_sha256": "6a969165e10f7aefef75593cb49c911471689e606e49443a41cc7a200a39a88e"
+    },
+    {
+      "source": "drug_matching/performance.py",
+      "destination": "ocr_service/legacy/drug_matching/performance.py",
+      "source_sha256": "8f48df3e7eedc04274045a5c3a308bf170bb27414d465e1ecac6ea0164d1a8d4",
+      "deployed_sha256": "8f48df3e7eedc04274045a5c3a308bf170bb27414d465e1ecac6ea0164d1a8d4"
+    },
+    {
+      "source": "drug_matching/pipeline.py",
+      "destination": "ocr_service/legacy/drug_matching/pipeline.py",
+      "source_sha256": "cd3039eb16aa11fe8be1731949a35d3e5ccf482ce9a075e7539973ee82b26311",
+      "deployed_sha256": "cd3039eb16aa11fe8be1731949a35d3e5ccf482ce9a075e7539973ee82b26311"
+    },
+    {
+      "source": "drug_matching/repository.py",
+      "destination": "ocr_service/legacy/drug_matching/repository.py",
+      "source_sha256": "9b15b192db5dff8fab402f3a3748526865d7c50da073913d61f1f9b523538517",
+      "deployed_sha256": "9b15b192db5dff8fab402f3a3748526865d7c50da073913d61f1f9b523538517"
+    },
+    {
+      "source": "drug_matching/strength_parser.py",
+      "destination": "ocr_service/legacy/drug_matching/strength_parser.py",
+      "source_sha256": "426d666cb0aaa546a4f2d6cbb5b074d985d0996e1a2a727546b37a634830ddf6",
+      "deployed_sha256": "426d666cb0aaa546a4f2d6cbb5b074d985d0996e1a2a727546b37a634830ddf6"
+    },
+    {
+      "source": "function/pair_function.py",
+      "destination": "yolo_service/legacy/function/pair_function.py",
+      "source_sha256": "ae26e1c2f392c4fe4d662be6c3f2dc233bec41b615da5fcd75d1d35cfa73e455",
+      "deployed_sha256": "ae26e1c2f392c4fe4d662be6c3f2dc233bec41b615da5fcd75d1d35cfa73e455"
+    },
+    {
+      "source": "ocr.py",
+      "destination": "ocr_service/legacy/ocr.py",
+      "source_sha256": "0affccbb2bdb514ac6e29bf6138a3dd58cd2c9d0cb4e380af1439d18854d003d",
+      "deployed_sha256": "b2e24fd9422b61cfce860b19f86b94595ea624f221022a32c5551e951ce4f331"
+    },
+    {
+      "source": "OCR_AND_YOLO.py",
+      "destination": "tests/upstream/OCR_AND_YOLO.py",
+      "source_sha256": "33f4071ab2d6ec4cbf171309644d53753f10bfebc82e130e6bd268ef6dd3d27f",
+      "deployed_sha256": "33f4071ab2d6ec4cbf171309644d53753f10bfebc82e130e6bd268ef6dd3d27f"
+    },
+    {
+      "source": "ocr_diagnostics.py",
+      "destination": "ocr_service/legacy/ocr_diagnostics.py",
+      "source_sha256": "9a20462e1097531a73ae6eeb6762cb34fd33f6107232d46888d044c2269543e4",
+      "deployed_sha256": "9a20462e1097531a73ae6eeb6762cb34fd33f6107232d46888d044c2269543e4"
+    },
+    {
+      "source": "ood_filter/__init__.py",
+      "destination": "yolo_service/legacy/ood_filter/__init__.py",
+      "source_sha256": "f9e68f57505fa3d1830daa81fb2e9e8c10875e850888b40f667a4a3aaad680fa",
+      "deployed_sha256": "f9e68f57505fa3d1830daa81fb2e9e8c10875e850888b40f667a4a3aaad680fa"
+    },
+    {
+      "source": "ood_filter/artifacts/feature_bank.npz",
+      "destination": "yolo_service/legacy/ood_filter/artifacts/feature_bank.npz",
+      "source_sha256": "b42c84687eb85583af9f1e9e6f6898cee7f4e28278488b3b4d69c4e28ba94b90",
+      "deployed_sha256": "b42c84687eb85583af9f1e9e6f6898cee7f4e28278488b3b4d69c4e28ba94b90"
+    },
+    {
+      "source": "ood_filter/config.json",
+      "destination": "yolo_service/legacy/ood_filter/config.json",
+      "source_sha256": "7aa9319d14c6e2caa44e85f798aaca39e07bd41f3872f329e1b77a8eb6d3a28a",
+      "deployed_sha256": "7aa9319d14c6e2caa44e85f798aaca39e07bd41f3872f329e1b77a8eb6d3a28a"
+    },
+    {
+      "source": "ood_filter/models/best.pt",
+      "destination": "models/yolo_best.pt",
+      "source_sha256": "c20a825b92dbb021d4c9155b01829bd5e6a1e11b0fe2707c484bca6fa3e3aebb",
+      "deployed_sha256": "c20a825b92dbb021d4c9155b01829bd5e6a1e11b0fe2707c484bca6fa3e3aebb"
+    },
+    {
+      "source": "ood_filter/models/best_pair.pt",
+      "destination": "models/best_pair.pt",
+      "source_sha256": "9860e6d8b379ba7e455ce1e29b0a56dae13cb8b83359403c16d4cd57f4ad9b23",
+      "deployed_sha256": "9860e6d8b379ba7e455ce1e29b0a56dae13cb8b83359403c16d4cd57f4ad9b23"
+    },
+    {
+      "source": "ood_filter/scoring.py",
+      "destination": "yolo_service/legacy/ood_filter/scoring.py",
+      "source_sha256": "b96978b45d4719c7345a83789055a0b3c36a2f2fd0927b7d54d3a69d9b716374",
+      "deployed_sha256": "b96978b45d4719c7345a83789055a0b3c36a2f2fd0927b7d54d3a69d9b716374"
+    },
+    {
+      "source": "ood_filter/service.py",
+      "destination": "yolo_service/legacy/ood_filter/service.py",
+      "source_sha256": "f57d69f282e23fc6632e53b83ed108ef6fbd783ba35853cda67db12a5cf248f8",
+      "deployed_sha256": "f57d69f282e23fc6632e53b83ed108ef6fbd783ba35853cda67db12a5cf248f8"
+    },
+    {
+      "source": "opencv_occupancy.py",
+      "destination": "tests/upstream/opencv_occupancy.py",
+      "source_sha256": "26f2a10c7e922be632fbfcd59a586859ae6d2ec7f81d3ec64744af345a10732c",
+      "deployed_sha256": "26f2a10c7e922be632fbfcd59a586859ae6d2ec7f81d3ec64744af345a10732c"
+    },
+    {
+      "source": "opencv_validation.py",
+      "destination": "tests/upstream/opencv_validation.py",
+      "source_sha256": "0ffba3c54eb6261a69444e66ad632e5224f8d34511655c5642bfa72e0daeedbc",
+      "deployed_sha256": "0ffba3c54eb6261a69444e66ad632e5224f8d34511655c5642bfa72e0daeedbc"
+    },
+    {
+      "source": "pair_image_io.py",
+      "destination": "tests/upstream/pair_image_io.py",
+      "source_sha256": "096489901197ba58344f0056c9981beb8d00ef34ddf2200471f7c71d90c68f1e",
+      "deployed_sha256": "096489901197ba58344f0056c9981beb8d00ef34ddf2200471f7c71d90c68f1e"
+    },
+    {
+      "source": "realtime_inference.py",
+      "destination": "ocr_service/legacy/realtime_inference.py",
+      "source_sha256": "7087fe82b1c484f484132d51505d3176b87c9bcfca3ed4a89e4aa040b3238a71",
+      "deployed_sha256": "7087fe82b1c484f484132d51505d3176b87c9bcfca3ed4a89e4aa040b3238a71"
+    },
+    {
+      "source": "tests/test_angle_fallback.py",
+      "destination": "tests/upstream/test_angle_fallback.py",
+      "source_sha256": "9f083c6c86439ef351d8091424041c408b584ba9800595e7254b5f5cccde416d",
+      "deployed_sha256": "9f083c6c86439ef351d8091424041c408b584ba9800595e7254b5f5cccde416d"
+    },
+    {
+      "source": "tests/test_batch_pipeline.py",
+      "destination": "tests/upstream/test_batch_pipeline.py",
+      "source_sha256": "dd5f5e27e29afb4643bdbe2f9dba8cec6623bd8d9ca8ae991727371e9704af04",
+      "deployed_sha256": "dd5f5e27e29afb4643bdbe2f9dba8cec6623bd8d9ca8ae991727371e9704af04"
+    },
+    {
+      "source": "tests/test_identifier_normalization.py",
+      "destination": "tests/upstream/test_identifier_normalization.py",
+      "source_sha256": "7df758cb2408aed98f51934ce170cab7e29783b27145e98f273d5c67f0801cd1",
+      "deployed_sha256": "7df758cb2408aed98f51934ce170cab7e29783b27145e98f273d5c67f0801cd1"
+    },
+    {
+      "source": "tests/test_ocr_orientation.py",
+      "destination": "tests/upstream/test_ocr_orientation.py",
+      "source_sha256": "997a0ae08e8f95b30945db5c83cd7a98c5ba63128ee35832e239d303e3954f8d",
+      "deployed_sha256": "997a0ae08e8f95b30945db5c83cd7a98c5ba63128ee35832e239d303e3954f8d"
+    },
+    {
+      "source": "tests/test_ood_filter.py",
+      "destination": "tests/upstream/test_ood_filter.py",
+      "source_sha256": "c42501f7d6cf197c146a03f48cd637e59383b90d99e23ede752e1a3acc7ca286",
+      "deployed_sha256": "c42501f7d6cf197c146a03f48cd637e59383b90d99e23ede752e1a3acc7ca286"
+    },
+    {
+      "source": "tests/test_realtime_memory.py",
+      "destination": "tests/upstream/test_realtime_memory.py",
+      "source_sha256": "0f18962eb23b7eaff72b49f287d874678c1731847f7fbefc8de28cc81e17c87e",
+      "deployed_sha256": "0f18962eb23b7eaff72b49f287d874678c1731847f7fbefc8de28cc81e17c87e"
+    },
+    {
+      "source": "tests/test_yolo_stage_equivalence.py",
+      "destination": "tests/upstream/test_yolo_stage_equivalence.py",
+      "source_sha256": "157a87599d38bed229d24da46fe6719164fbf3783c8b08de412ac4cef914ffdf",
+      "deployed_sha256": "157a87599d38bed229d24da46fe6719164fbf3783c8b08de412ac4cef914ffdf"
+    },
+    {
+      "source": "YOLO_STAGE.py",
+      "destination": "ocr_service/legacy/YOLO_STAGE.py",
+      "source_sha256": "e7207fd1f1d3f25c75649fab61829bb639359a9c000fcf7ac38a21a462ab7330",
+      "deployed_sha256": "e7207fd1f1d3f25c75649fab61829bb639359a9c000fcf7ac38a21a462ab7330"
+    }
+  ]
+}

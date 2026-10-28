@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app:/app/legacy \
+    YOLO_CONFIG_DIR=/tmp/ultralytics
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libglib2.0-0 libgl1 libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY yolo_service/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu118 \
+      torch==2.7.1 torchvision==0.22.1 \
+    && pip install --no-cache-dir -r /app/requirements.txt
+COPY yolo_service/app /app/app
+COPY yolo_service/legacy /app/legacy
+COPY models/best_pair.pt /app/legacy/ood_filter/models/best_pair.pt
+COPY models/yolo_best.pt /app/legacy/ood_filter/models/best.pt
+
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /tmp/ultralytics \
+    && chown -R appuser:appuser /app /tmp/ultralytics
+USER appuser
+EXPOSE 8001
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]

@@ -31,6 +31,17 @@ MIN_MATCHED_FIELDS = 2
 MIN_TOP_GAP = 8.0
 MIN_GENERIC_TOKEN_LENGTH = 4
 
+# Release/form wording is shared by many products and must not identify a
+# brand merely because a short OCR fragment occurs inside its full Chinese
+# database name.  Exact names remain valid, as does a complete database name
+# found inside a longer OCR line.
+NON_DISTINCTIVE_CHINESE_NAME_FRAGMENTS = frozenset({
+    "持續", "持續性", "釋放", "持續性釋放", "緩釋", "控釋",
+    "膠囊", "錠", "錠劑", "膜衣錠", "腸溶錠", "顆粒",
+})
+MIN_CHINESE_PARTIAL_NAME_LENGTH = 3
+MIN_CHINESE_PARTIAL_NAME_COVERAGE = 0.5
+
 
 FORM_RE = re.compile(
     r"\b(?:effervescent|tablet|tab|capsule|cap|granules?|enteric|film.?coated|"
@@ -132,6 +143,37 @@ def _name_points(match):
     if value >= 70:
         return NAME_FUZZY_LOW_SCORE
     return 0.0
+
+
+def _chinese_name_points(match):
+    """Score Chinese product-name evidence without rewarding generic fragments."""
+    kind = str(match.get("kind") or "").lower()
+    if kind == "exact":
+        return CHINESE_NAME_SCORE
+    if kind == "fuzzy" and float(match.get("similarity") or 0.0) >= 90.0:
+        return CHINESE_NAME_SCORE
+    if kind != "contains":
+        return 0.0
+
+    observed = normalize_text(match.get("evidence") or "")
+    database = normalize_text(match.get("database_value") or "")
+    if not observed or not database:
+        return 0.0
+
+    # Seeing the complete database name within a noisy OCR line is still
+    # product-specific evidence.  The risky direction is a short observed
+    # fragment (for example "持續") occurring in a much longer database name.
+    if database in observed:
+        return CHINESE_NAME_SCORE
+    if observed not in database:
+        return 0.0
+    if observed in NON_DISTINCTIVE_CHINESE_NAME_FRAGMENTS:
+        return 0.0
+    if len(observed) < MIN_CHINESE_PARTIAL_NAME_LENGTH:
+        return 0.0
+    if len(observed) / len(database) < MIN_CHINESE_PARTIAL_NAME_COVERAGE:
+        return 0.0
+    return CHINESE_NAME_SCORE
 
 
 def _prefer_specific_longer_names(scored):
@@ -407,7 +449,7 @@ class DrugMatcher:
             }
         name_score = _name_points(name_match)
         zh_match = _best_text_match(chinese, [value for value in chinese_names if value], minimum_length=2)
-        zh_score = CHINESE_NAME_SCORE if zh_match["kind"] in ("exact", "contains") or zh_match["similarity"] >= 90 else 0.0
+        zh_score = _chinese_name_points(zh_match)
 
         ingredient_values = [item[0] for item in product.get("ingredients", []) if item and item[0]]
         ingredient_match = _best_text_match(all_texts, ingredient_values)

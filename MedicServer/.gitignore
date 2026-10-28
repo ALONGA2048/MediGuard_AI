@@ -9,3 +9,5 @@ data/uploads/*
 !data/results/.gitkeep
 !data/uploads/.gitkeep
 
+# Local verification dependencies
+.test-deps/

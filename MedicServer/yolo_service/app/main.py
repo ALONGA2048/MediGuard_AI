@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import os
-import tempfile
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import torch
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from function.pair_function import PairYoloPredictor
+import cv2
+import numpy as np
+from ood_filter import CosineKNN1OODFilter
 
 MAX_BYTES = 25 * 1024 * 1024
 
@@ -19,9 +19,8 @@ async def lifespan(app: FastAPI):
     device = configured if configured != "auto" else ("cuda:0" if torch.cuda.is_available() else "cpu")
     if device.startswith("cuda") and not torch.cuda.is_available():
         raise RuntimeError(f"YOLO_DEVICE={device}, but CUDA is unavailable in this image/runtime")
-    app.state.predictor = PairYoloPredictor(
-        checkpoint_path=os.getenv("PAIR_CHECKPOINT", "/models/best_pair.pt"),
-        base_model_path=os.getenv("YOLO_BASE_MODEL", "/models/yolo_best.pt"),
+    app.state.gate = CosineKNN1OODFilter(
+        config_path=os.getenv("OOD_CONFIG", "/app/legacy/ood_filter/config.json"),
         device=device, verbose=True,
     )
     app.state.device = device
@@ -29,7 +28,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Medic paired-YOLO worker", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Medic Pair-YOLO + cosine kNN1 OOD worker", version="2.0.0", lifespan=lifespan)
 
 
 async def read_image(upload: UploadFile, label: str) -> bytes:
@@ -41,18 +40,27 @@ async def read_image(upload: UploadFile, label: str) -> bytes:
 
 @app.get("/health")
 async def health():
-    return {"status": "ready", "model_loaded": hasattr(app.state, "predictor"), "device": getattr(app.state, "device", None)}
+    return {"status": "ready", "model_loaded": hasattr(app.state, "gate"),
+            "device": getattr(app.state, "device", None),
+            "ood": app.state.gate.compatibility_metadata()}
+
+
+def decode_image(data: bytes, label: str) -> np.ndarray:
+    # Match drug-project's BGR array input, preserving front/cam0, back/cam1.
+    frame = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if frame is None or frame.size == 0:
+        raise HTTPException(422, f"{label} is not a decodable image")
+    return frame
 
 
 @app.post("/internal/v1/classify")
 async def classify(front_image: UploadFile = File(...), back_image: UploadFile = File(...)):
     front, back = await asyncio.gather(read_image(front_image, "front_image"), read_image(back_image, "back_image"))
-    with tempfile.TemporaryDirectory(prefix="medic-yolo-") as directory:
-        first = Path(directory) / "cam0.jpg"
-        second = Path(directory) / "cam1.jpg"
-        first.write_bytes(front)
-        second.write_bytes(back)
-        async with app.state.lock:
-            result = await asyncio.to_thread(app.state.predictor.predict, first, second, 5)
+    first, second = await asyncio.gather(
+        asyncio.to_thread(decode_image, front, "front_image"),
+        asyncio.to_thread(decode_image, back, "back_image"),
+    )
+    async with app.state.lock:
+        result = await asyncio.to_thread(app.state.gate.predict_arrays, first, second, 5)
     return {**result, "input_order": ["front", "back"], "device": app.state.device}
 

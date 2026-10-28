@@ -1,5 +1,7 @@
 # pythonOCR assessment and container design
 
+Historical assessment of the initial Server migration. The active production flow was updated on 2026-10-24 from `drug-project`; see [OOD_MIGRATION.md](OOD_MIGRATION.md) for current ordering, models, consensus and GPU deployment. Statements below about skipped YOLO, model paths and inactive settings describe the earlier implementation.
+
 ## Existing pipeline
 
 The reviewed implementation is a two-stage batch pipeline:

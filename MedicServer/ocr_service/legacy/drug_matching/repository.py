@@ -28,6 +28,8 @@ class DrugRepository:
             "port": os.getenv("PGPORT", "5432"),
             "dbname": os.getenv("PGDATABASE", "medicine_ocr"),
             "user": os.getenv("PGUSER", "postgres"),
+            # Credentials must come from the runtime environment. Never commit
+            # a real database password to GitHub.
             "password": os.environ["PGPASSWORD"],
         }
         started = time.perf_counter_ns()
