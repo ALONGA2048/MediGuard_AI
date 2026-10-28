@@ -1,0 +1,16 @@
+services:
+  website:
+    image: mediguard-website:latest
+    build:
+      context: ..
+      dockerfile: docker-ver/Dockerfile
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${WEBSITE_PORT:-3000}:3000"
+      - "${TESTER_PORT:-3001}:3001"
+    environment:
+      RASPBERRY_PI_BASE_URL: ${RASPBERRY_PI_BASE_URL:-http://host.docker.internal:5000}
+      RASPBERRY_PI_DEVICE_TOKEN: ${RASPBERRY_PI_DEVICE_TOKEN:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

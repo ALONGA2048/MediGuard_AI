@@ -86,6 +86,8 @@ scripts/              Development, build, Sites, and Wrangler support scripts
 
 ## Local Development
 
+For a single-container deployment of both website entry points, see [Docker deployment](docker-ver/README.md). Docker configuration is kept in `docker-ver/` and uses this directory as its build context.
+
 ```powershell
 Copy-Item .env.example .env.local
 npm install
