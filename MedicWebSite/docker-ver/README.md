@@ -1,5 +1,7 @@
 # MediGuard 網站 Docker 部署
 
+**繁體中文** | [English](README.en.md)
+
 將完整 MedicWebSite 網站、伺服器端 API 與測試入口包成**一個映像檔、一個容器**。保留現有 Vinext / Cloudflare Workers 本機執行方式，使用建置後的 `dist` 啟動，不使用 Vite 開發伺服器。無須 Cloudflare 帳號或登入。
 
 映像透過專案的 `vite.config.ts` 執行 `vite build`，產生 Wrangler 所需的 Worker 設定；目前的 `npm run build` 使用 Vinext Node 目標，Docker 改用與執行環境一致的建置入口。
@@ -21,6 +23,8 @@ Linux 複製設定可使用 `cp .env.example .env`。第一次建置需要連網
 - 主網站：<http://localhost:3000>
 - 測試介面：<http://localhost:3001>
 - 健康檢查：<http://localhost:3000/api/v1/health>
+
+登入頁、主網站與測試介面右上角可切換繁體中文／英文，並記住瀏覽器的選擇。
 
 若修改 `.env` 的 `WEBSITE_PORT` 或 `TESTER_PORT`，請使用對應的主機埠。LAN 裝置改用 `http://<部署主機 IP>:3000` / `:3001`，並允許主機防火牆的對應連入埠。Compose 預設對外開放這兩個入口，測試介面目前沒有登入機制。
 

@@ -1,5 +1,11 @@
 # MediGuard Smart Medication Platform
 
+[繁體中文](README.zh-TW.md) | **English**
+
+## Interface Language
+
+Use **English / 繁體中文** at the top right of the login page, main website, or tester interface to switch languages. The browser remembers your choice, including after a refresh. Labels, demonstration data, dialogs, and camera guidance are translated for display; imported prescription content and recognition matching data keep their original values. Translations are maintained in `lib/locales/en.json` and `lib/i18n.ts`.
+
 MedicWebSite is the user interface and device proxy layer for MediGuard AI. It provides medication management screens while keeping the Raspberry Pi shared token on the server and proxying camera, lighting, original image, and MedicServer recognition-status requests.
 
 > The project is currently an interactive prototype. The Raspberry Pi capture and MedicServer recognition flow is implemented, but authentication, prescriptions, the medication catalog, and several management datasets still use frontend demonstrations or mock APIs. Production accounts, authorization, and persistence are not yet implemented.
@@ -14,7 +20,7 @@ MedicWebSite is the user interface and device proxy layer for MediGuard AI. It p
 - Same-origin website APIs that proxy the Raspberry Pi without exposing the device token to the browser.
 - Prescription verification: scan a prescription QR code, position each medicine in Cam1, and mark matching items in the checklist. All items must match before the success screen appears.
 - Dual entry points from one startup command: the full site on port `3000` and a focused tester interface on port `3001`.
-- Tester-only local capture mode with selectable light color/brightness and direct browser-folder saving without a MedicServer upload.
+- Tester-only local capture mode with selectable light color/brightness, a browser capture buffer, and ZIP export without a MedicServer upload.
 - Recognition history, device status, and system settings screens.
 - `/api/v1` endpoints for health checks, medication search, prescription import, and device proxy operations.
 
@@ -42,11 +48,11 @@ The website polls the Pi's `verification.json` for the active capture every two 
 
 ## Prescription Verification Demo
 
-Open **藥物辨識 → 啟動辨識**, allow the browser camera, and scan `public/demo-prescription.png`. You can also choose **開啟手機相機拍照掃碼** to open the phone camera or **選擇藥單圖片** to decode the QR from a file. Confirm the captured photo to import its QR. Native capture availability depends on the mobile browser; if an in-app browser does not open the camera, use Safari/Chrome or select an existing photo. The QR contains the complete JSON prescription and does not depend on an external URL.
+Open **Medication verification → Start verification**, allow the browser camera, and scan `public/demo-prescription.png`. You can also choose **Open phone camera to scan** to open the phone camera or **Choose prescription image** to decode the QR from a file. Confirm the captured photo to import its QR. Native capture availability depends on the mobile browser; if an in-app browser does not open the camera, use Safari/Chrome or select an existing photo. The QR contains the complete JSON prescription and does not depend on an external URL.
 
 Live browser camera access requires a secure context (trusted HTTPS, or localhost on the same device). A phone opening `http://<computer-IP>:3000` is not a secure context: the browser blocks live camera access without showing a permission prompt. The scanner detects this before starting the camera and explains the photo/image alternatives. A denied permission, unavailable camera, and occupied camera each display different recovery guidance, with a retry button after changing settings. The live camera is released when choosing photo capture to avoid occupying the phone camera. Changing allowed origins does not enable camera access on HTTP; to enable live scanning, serve the site via HTTPS with a certificate trusted by the phone.
 
-After import, the desktop layout shows Cam1 and the recognition button on the left, with the prescription checklist on the right (stacked on mobile). Open Cam1, position one medicine, and press **辨識並核對**. The website uses the completed fused prediction to check an exact normalized name; case, spaces, and separator punctuation may differ, but strengths and formulation words must match. It does not mark candidates, unknown/review outcomes, drugs outside the prescription, or already checked drugs. **繼續辨識** opens Cam1 for the next medicine. All four checks lead to **核對成功！ → 返回總覽**. Captured photos and predicted names are not displayed in this flow. The separate port 3001 photo testing tool still displays its captures.
+After import, the desktop layout shows Cam1 and the recognition button on the left, with the prescription checklist on the right (stacked on mobile). Open Cam1, position one medicine, and press **Recognize and verify**. The website uses the completed fused prediction to check an exact normalized name; case, spaces, and separator punctuation may differ, but strengths and formulation words must match. It does not mark candidates, unknown/review outcomes, drugs outside the prescription, or already checked drugs. **Continue verification** opens Cam1 for the next medicine. All four checks lead to **Prescription verified! → Back to overview**. Captured photos and predicted names are not displayed in this flow. The separate port 3001 photo testing tool still displays its captures.
 
 The demonstration preserves the requested names verbatim: REXULTI 1mg, Theophyline anhydrous, Exelon, and Flexer Extended-Release F.C. Tablets 15mg. `examples/demo-prescription.json` is the source for both the printed list and QR. This is a test document without medical dosing instructions.
 
@@ -99,7 +105,7 @@ Open either entry point after startup:
 - `http://127.0.0.1:3000/` — full MediGuard website. The current login is a demonstration, so entering an email address and password is sufficient.
 - `http://127.0.0.1:3001/` — tester interface without login, prescriptions, or medication lookup. It contains the normal recognition flow and a separate local-only capture tool.
 
-In local-only capture mode the Raspberry Pi returns both high-resolution images to the browser with `sendToServer: false`. Chromium-based browsers opened through `localhost` can grant a selected-folder write permission. Other browsers or insecure LAN origins fall back to normal JPEG downloads because browsers do not permit arbitrary folder writes there.
+In local-only capture mode the Raspberry Pi returns both high-resolution images to the browser with `sendToServer: false`. Photos remain in a browser buffer; remove individual photos or entire sets and export all remaining photos as a ZIP. Download the ZIP before refreshing or closing the tab. Browser folder access remains subject to secure-context and browser support restrictions.
 
 Server-side settings in `.env.local`:
 
@@ -140,7 +146,8 @@ The `210.240.160.x` addresses are examples from the current LAN and must be repl
 | `npm run dev:main` | Start only the full website on port `3000` |
 | `npm run lint` | Run ESLint |
 | `node node_modules\typescript\bin\tsc --noEmit` | Run TypeScript type checking |
-| `npm run build` | Create the production build |
+| `npm run build` | Build the Vinext Node target |
+| `node node_modules\vite\bin\vite.js build` | Create the Worker build required by Wrangler |
 | `npm start` | Start the built website on port `3000` and tester proxy on port `3001` |
 
 Run the complete validation and local production startup sequence:
@@ -148,11 +155,13 @@ Run the complete validation and local production startup sequence:
 ```powershell
 npm run lint
 node node_modules\typescript\bin\tsc --noEmit
-npm run build
+node node_modules\vite\bin\vite.js build
 npm start
 ```
 
-`npm run build` must complete successfully before `npm start`.
+The Worker build must complete successfully before `npm start`. The Docker configuration uses this same Vite build entry point.
+
+Run language and camera guidance regressions with `node --test scripts/i18n.test.mjs scripts/camera-access.test.mjs`.
 
 ## Website API
 

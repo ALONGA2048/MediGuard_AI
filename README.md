@@ -1,5 +1,11 @@
 # MediGuard AI
 
+[繁體中文](README.zh-TW.md) | **English**
+
+## Running Test Website
+
+A test version of the website is currently running at [MediGuard test website](http://210.240.160.152:3000). Use the button at the top right to switch between Traditional Chinese and English. Access depends on connectivity to the deployment network.
+
 MediGuard AI is a smart medication identification prototype that combines a web interface, Raspberry Pi dual-camera and lighting controls, and an OCR/YOLO medication recognition backend in one workspace.
 
 > This project is currently a development prototype. The hardware capture and recognition flow can be integrated end to end, but website authentication, prescriptions, medication data, and several management screens still use demonstration data. Do not treat it as a production medical system.
@@ -33,6 +39,7 @@ Camera 1 maps to `front_image`, and Camera 2 maps to `back_image`. The Raspberry
 - Website screens for prescriptions, medication lookup, recognition history, device status, and system settings.
 - Server-side proxy for Raspberry Pi lighting, preview, dual-camera capture, saved images, and recognition status APIs.
 - Mobile QR code/barcode scanning and desktop JSON prescription import.
+- Traditional Chinese and English interfaces with a top-right language switch and a saved browser preference.
 
 ## Requirements
 
@@ -101,11 +108,11 @@ Website:
 Set-Location .\MedicWebSite
 npm run lint
 node node_modules\typescript\bin\tsc --noEmit
-npm run build
+node node_modules\vite\bin\vite.js build
 npm start
 ```
 
-`npm run build` creates the production build. `npm start` launches the built application through the local Wrangler runtime on `127.0.0.1`.
+`vite build` creates the Worker build required by the current Wrangler startup. `npm run build` currently targets Vinext Node. `npm start` launches both entry points on all interfaces. For a single-container website deployment, see the [Docker guide](MedicWebSite/docker-ver/README.en.md).
 
 Backend images and unit tests:
 
@@ -128,7 +135,7 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 curl.exe http://localhost:8000/api/v1/health
 ```
 
-The health response should report `ocr_device: "cuda:0"`, `paddle_cuda: true`, and at least one `cuda_devices` entry. The GPU override currently applies only to the OCR container; YOLO continues to use the standard Compose configuration.
+The health response should report `ocr_device: "cuda:0"`, `paddle_cuda: true`, and at least one `cuda_devices` entry. The GPU override applies to both OCR and Pair-YOLO/OOD; see the backend README for device selection and CPU alternatives.
 
 ## Shutdown and Data Safety
 

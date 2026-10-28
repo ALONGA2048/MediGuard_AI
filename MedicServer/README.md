@@ -1,5 +1,7 @@
 # MedicServer
 
+[繁體中文](README.zh-TW.md) | **English**
+
 MedicServer is the medication recognition backend for MediGuard AI. It accepts front/back images, runs one Pair-YOLO forward with a calibrated cosine kNN1 OOD gate, then PaddleOCR/barcode/database recognition and guarded consensus. It stores the complete evidence and final result. The implementation is synchronized with `drug-project` commit `9987e9347360a326cbde4c905ba918001eb28f5c`.
 
 See [the flow comparison and migration notes](docs/OOD_MIGRATION.md) and [the complete source inventory](docs/drug-project-file-inventory.csv).
