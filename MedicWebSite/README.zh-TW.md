@@ -88,6 +88,10 @@ docker-ver/           網站單容器部署設定
 
 ## 環境需求
 
+### 獨立 8 吋樹莓派觸控版本
+
+Waveshare 8DP-CAPLCD（HDMI 顯示、USB 觸控）的 POS 風格工作站位於 [raspberry-pi-8inch](raspberry-pi-8inch/README.md)。包含 Ubuntu Server 24.04 加裝 GNOME 桌面的架設流程、1280×800 介面、桌面開機全螢幕、本機 SQLite 保存，以及手機熱點搭配 Tailscale 的私有資料同步與接收端；可獨立執行，不依賴下列 Node 網站環境。
+
 - Node.js `22.13.0` 以上、npm；專案附 `package-lock.json`。
 - 硬體功能需要網站主機能連至樹莓派 Flask 服務。
 - 完整辨識需要樹莓派能連至 MedicServer 核對 API。

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#123d34"><title>MediGuard｜8 吋觸控工作站</title><link rel="stylesheet" href="/styles.css"></head>
+<body>
+<header><div class="brand"><span class="logo">＋</span><div>MediGuard <small>TOUCH TERMINAL · 08</small></div></div><div class="connection"><span id="connection">● 本機工作站</span><time id="clock"></time></div></header>
+<div class="workspace">
+<nav aria-label="主選單"><span class="nav-caption">工作站</span><button class="nav-button active" id="pick-tab">▦<span>選取品項</span></button><button class="nav-button" id="history-tab">≡<span>交付紀錄</span></button><div class="nav-bottom"><span class="device-dot">●</span><span id="device">PI TERMINAL</span><small>1280 × 800<br>HDMI / USB TOUCH</small></div></nav>
+<main><section id="pick-view"><div class="heading"><div><div class="eyebrow">MEDIGUARD / 工作台</div><h1>今天，需要準備什麼？</h1><p>點選品項，加入右側交付清單。</p></div><span class="demo-tag">展示品項</span></div><label class="search">⌕<input type="search" id="search" placeholder="搜尋品項名稱…" autocomplete="off" aria-label="搜尋品項"></label><div class="filters" id="filters"><button class="selected" data-category="全部">全部品項</button><button data-category="藥品展示">藥品展示</button><button data-category="照護用品">照護用品</button></div><div class="catalog" id="catalog"></div></section>
+<section id="history-view" hidden><div class="heading"><div><div class="eyebrow">MEDIGUARD / RECORDS</div><h1>交付紀錄</h1><p>最近 100 筆本機與接收紀錄。</p></div></div><div class="history-tools"><button id="sync">↻ 立即同步</button><button id="export">匯出 JSON</button></div><p id="sync-detail"></p><div id="history"></div></section>
+<footer><span>本機保存 · 連線後自動同步</span><span>展示介面，未執行藥物辨識或付款</span></footer></main>
+<aside><div class="cart-heading"><div class="eyebrow">CURRENT LIST</div><h2>交付清單 <span id="line-count">0</span></h2></div><div class="segmented"><button class="selected" data-mode="自取">現場自取</button><button data-mode="交接">照護交接</button></div><div id="cart" class="cart"></div><div class="cart-summary"><div><span>品項總數</span><strong id="quantity">0 件</strong></div><p>送出後保存在此裝置，等待遠端接收。</p><button id="submit" class="primary" disabled>確認送出清單 <span>→</span></button><button id="clear" class="clear" disabled>清空清單</button></div></aside>
+</div>
+<dialog id="confirm"><h2>確認交付清單</h2><p id="confirm-text"></p><div class="dialog-actions"><button id="cancel-confirm">返回修改</button><button id="commit" class="primary">確認保存</button></div></dialog>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<script src="/app.js" defer></script></body></html>

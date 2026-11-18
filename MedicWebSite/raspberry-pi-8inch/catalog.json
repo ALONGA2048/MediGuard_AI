@@ -1,0 +1,10 @@
+[
+  {"id":"demo-01","name":"REXULTI 1mg","category":"藥品展示","unit":"盒","symbol":"Rx","color":"mint","description":"示範品項 · 不代表用藥建議"},
+  {"id":"demo-02","name":"Theophyline anhydrous","category":"藥品展示","unit":"盒","symbol":"Rx","color":"blue","description":"示範品項 · 不代表用藥建議"},
+  {"id":"demo-03","name":"Exelon","category":"藥品展示","unit":"盒","symbol":"Rx","color":"peach","description":"示範品項 · 不代表用藥建議"},
+  {"id":"demo-04","name":"Flexer ER 15mg","category":"藥品展示","unit":"盒","symbol":"Rx","color":"lilac","description":"示範品項 · 不代表用藥建議"},
+  {"id":"supply-01","name":"一週分裝藥盒","category":"照護用品","unit":"個","symbol":"▦","color":"blue","description":"七日分格 · 展示用品"},
+  {"id":"supply-02","name":"隨身收納袋","category":"照護用品","unit":"個","symbol":"＋","color":"mint","description":"外出攜帶 · 展示用品"},
+  {"id":"supply-03","name":"照護紀錄本","category":"照護用品","unit":"本","symbol":"≡","color":"peach","description":"日常紀錄 · 展示用品"},
+  {"id":"supply-04","name":"品項標籤貼","category":"照護用品","unit":"組","symbol":"▤","color":"lilac","description":"分類標示 · 展示用品"}
+]

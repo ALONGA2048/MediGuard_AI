@@ -39,7 +39,7 @@ function Logo() {
 function Login({ onLogin }: { onLogin: () => void }) {
   const t = useTranslation();
 
-  const [loading,setLoading]=useState(false),[email,setEmail]=useState(""),[password,setPassword]=useState(""),[error,setError]=useState("");
+  const [loading,setLoading]=useState(false),[email,setEmail]=useState("demo@example.com"),[password,setPassword]=useState("MediGuardDemo123"),[error,setError]=useState("");
   function submit(e:FormEvent){e.preventDefault();setError("");if(!email.trim()||!password){setError("請輸入電子郵件與密碼");return}setLoading(true);setTimeout(onLogin,450)}
   return <main className="login-page"><div className="login-language"><LanguageToggle/></div>
     <section className="login-story"><div className="login-story-inner"><Logo/><div className="story-copy"><span className="eyebrow"><ShieldCheck size={15}/>  {t("安心管理每一次用藥")}</span><h1>{t("讓藥物辨識，")}<br/>{t("成為日常照護的一部分。")}</h1><p>{t("整合藥單、藥品資訊與智慧暗箱，從拍攝到查詢都在同一個安全平台完成。")}</p><div className="story-stats"><div><strong>{t("3 步驟")}</strong><span>{t("完成藥物辨識")}</span></div><div><strong>TFDA</strong><span>{t("官方藥品資料")}</span></div><div><strong>TLS</strong><span>{t("裝置加密連線")}</span></div></div></div><div className="device-illustration"><div className="device-glow"/><div className="device-shell"><div className="device-top"><span/><span/></div><div className="device-window"><ScanLine size={54}/><span>READY</span></div><div className="device-bottom"><i/><i/><i/></div></div><i className="floating-pill p1"/><i className="floating-pill p2"/></div></div></section>
