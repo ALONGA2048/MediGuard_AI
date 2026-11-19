@@ -1,5 +1,7 @@
 # MediGuard 樹莓派 · 8 吋 HDMI 觸控工作站
 
+**Raspberry Pi 3B／1 GB 使用者：**請使用 [Raspberry Pi OS Lite 32 位元＋Openbox 部署指南](docs/pi3-lite-openbox.md)。下方 Ubuntu／GNOME 流程適用記憶體較充足的機型。安裝器支援 `KIOSK_DESKTOP=openbox`，套件預先安裝完成時加 `SKIP_PACKAGE_INSTALL=1`，只建立服務與自啟設定。Pi OS 使用原生 Chromium，不安裝 GNOME 或 Snap。
+
 針對 **Waveshare 8DP-CAPLCD、1280 × 800、橫向、100% 顯示縮放**設計的獨立 POS 風格介面。在 **Ubuntu Server 24.04 LTS（arm64）加裝 GNOME 桌面**後，由 Python 提供本機網站，再以 Chromium kiosk 全螢幕顯示。手機熱點提供網際網路，Tailscale 提供裝置之間的私有連線。
 
 這是 MediGuard 的品項選取／交付工作站：不是餐廳點餐資料，也不提供收款、庫存扣帳、處方審核或藥物辨識。藥品為展示目錄，選取不代表可自行購買或服用。原有網站與 `../raspberry_pi` 相機服務維持獨立；本版本不需要先啟動 Node、Docker、相機或 MedicServer。
@@ -7,6 +9,8 @@
 Ubuntu Server 預設只有文字介面；要在 HDMI 螢幕直接操作本介面，需先安裝圖形環境。此指南採用 GNOME／GDM，不必重新刷成 Desktop 映像。只有遠端接收資料、不接螢幕的主機可維持純 Server。
 
 **部署順序：先依第 3 節確認熱點上網 → 第 2 節安裝桌面與設定螢幕 → 第 4 節安裝 POS 與自啟 → 第 5–6 節設定 Tailscale。** 原 Raspberry Pi OS 的 `raspi-config`、labwc 流程不適用 Ubuntu GNOME。
+
+需要逐項點選／貼指令的說明，請看 [第 4、5 步操作指南](docs/ubuntu-steps-4-5.md)，包含螢幕、自動登入、不休眠，以及手機瀏覽與 Windows 接收端的完整同步測試。
 
 若從舊 OS 搬移：先停止舊機服務，再備份並複製 `.env` 與完整 `data/`（自訂 `POS_DB` 則複製該位置）；在 Ubuntu 確認由新的登入使用者擁有，更新 `.env` 中舊的絕對路徑。草稿屬於舊瀏覽器的 localStorage，不會隨 SQLite 搬移，請先完成保存。重新安裝 OS 後須重新登入 Tailscale，檢查裝置名稱與 Serve URL，不能假設會與舊機相同。
 
@@ -69,6 +73,29 @@ sudo reboot
 在 **Settings → Displays（設定 → 顯示器）**選 HDMI 螢幕，設 **1280×800、60Hz、Landscape／橫向、Scale 100%**，套用並保留。Chromium 按 Ctrl+0 還原 100% 瀏覽器縮放，重新登入確認。
 
 USB 觸控應由 HID 自動辨識，初次先只接這一台螢幕。需要搜尋輸入時，可到 **Settings → Accessibility → Typing → Screen Keyboard** 啟用螢幕鍵盤。
+
+### 透過 SSH 改成直式（GNOME 已登入）
+
+將最新的 `scripts/rotate-display.py` 同步到樹莓派後，以**本機桌面已登入的同一帳號** SSH 進入。工具使用 GNOME／Mutter 的 session D-Bus，適用本指南的 GNOME 桌面，不依賴 `xrandr`，也不需要在 SSH 手動設定 `DISPLAY=:0`。
+
+```bash
+sudo apt install -y python3-gi
+cd ~/MediGuard_AI/MedicWebSite/raspberry-pi-8inch
+# 只讀取狀態，確認可連到桌面：
+/usr/bin/python3 scripts/rotate-display.py
+# 旋轉 90 度；此行不要 sudo：
+/usr/bin/python3 scripts/rotate-display.py --rotation 90
+# 方向相反時改成 270：
+# /usr/bin/python3 scripts/rotate-display.py --rotation 270
+# 還原橫向：
+# /usr/bin/python3 scripts/rotate-display.py --rotation 0
+```
+
+保留目前硬體解析度與縮放；1280×800／100% 旋轉 90 或 270 度後，可用畫面為 800×1280。設定立即影響目前桌面／kiosk，無須重跑安裝腳本。工具限定一個啟用螢幕，先驗證再套用並讀回方向；預設要求保存至使用者的顯示設定，重開後仍應實機確認。加 `--temporary` 可只暫時套用。
+
+找不到 session bus 或 GNOME 服務時，先完成桌面登入／自動登入，純 Server 文字模式無法用此工具旋轉桌面。工具不更改開機文字畫面或 GDM 登入畫面的方向。完成後檢查 USB 觸控位置；若觸控方向不一致，需另查輸入裝置對應。POS 排版目前仍以橫向三欄為主，旋轉不會替代直式版面設計。
+
+介面合約參考：[GNOME 46 Mutter DisplayConfig](https://github.com/GNOME/mutter/blob/gnome-46/data/dbus-interfaces/org.gnome.Mutter.DisplayConfig.xml)。此工具已做 Python 語法檢查，仍需在 Ubuntu GNOME 實機驗證旋轉、保存與觸控。
 
 若 EDID 辨識錯誤，先檢查電源、HDMI 線與螢幕 OSD。必要時才使用 KMS 備援：
 
@@ -302,7 +329,7 @@ sudo systemctl restart mediguard-pos
 | 變數 | 預設／用途 |
 | --- | --- |
 | `POS_HOST` | `127.0.0.1`，交給 Tailscale Serve 做私有遠端入口 |
-| `POS_PORT` | `8088`；修改後須同步改 `scripts/kiosk.sh` 與 Serve 目標 |
+| `POS_PORT` | `8088`；kiosk 會讀取 `.env` 的此值，修改後重啟 kiosk、網站服務並更新 Serve 目標 |
 | `POS_DEVICE_ID` | `mediguard-pi-01`；多台裝置請使用不同名稱 |
 | `POS_DB` | 預設此資料夾的 `data/pos.sqlite3`，可填絕對路徑 |
 | `POS_SYNC_URL` | 完整接收端 `/api/receive` URL；留白只保存本機 |
