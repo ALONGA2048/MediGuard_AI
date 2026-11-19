@@ -1,15 +1,19 @@
 <!doctype html>
 <html lang="zh-Hant">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#123d34"><title>MediGuard｜8 吋觸控工作站</title><link rel="stylesheet" href="/styles.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#174f3e"><title>MediGuard｜藥單核對工作站</title><link rel="stylesheet" href="/styles.css"></head>
 <body>
-<header><div class="brand"><span class="logo">＋</span><div>MediGuard <small>TOUCH TERMINAL · 08</small></div></div><div class="connection"><span id="connection">● 本機工作站</span><time id="clock"></time></div></header>
-<div class="workspace">
-<nav aria-label="主選單"><span class="nav-caption">工作站</span><button class="nav-button active" id="pick-tab">▦<span>選取品項</span></button><button class="nav-button" id="history-tab">≡<span>交付紀錄</span></button><div class="nav-bottom"><span class="device-dot">●</span><span id="device">PI TERMINAL</span><small>1280 × 800<br>HDMI / USB TOUCH</small></div></nav>
-<main><section id="pick-view"><div class="heading"><div><div class="eyebrow">MEDIGUARD / 工作台</div><h1>今天，需要準備什麼？</h1><p>點選品項，加入右側交付清單。</p></div><span class="demo-tag">展示品項</span></div><label class="search">⌕<input type="search" id="search" placeholder="搜尋品項名稱…" autocomplete="off" aria-label="搜尋品項"></label><div class="filters" id="filters"><button class="selected" data-category="全部">全部品項</button><button data-category="藥品展示">藥品展示</button><button data-category="照護用品">照護用品</button></div><div class="catalog" id="catalog"></div></section>
-<section id="history-view" hidden><div class="heading"><div><div class="eyebrow">MEDIGUARD / RECORDS</div><h1>交付紀錄</h1><p>最近 100 筆本機與接收紀錄。</p></div></div><div class="history-tools"><button id="sync">↻ 立即同步</button><button id="export">匯出 JSON</button></div><p id="sync-detail"></p><div id="history"></div></section>
-<footer><span>本機保存 · 連線後自動同步</span><span>展示介面，未執行藥物辨識或付款</span></footer></main>
-<aside><div class="cart-heading"><div class="eyebrow">CURRENT LIST</div><h2>交付清單 <span id="line-count">0</span></h2></div><div class="segmented"><button class="selected" data-mode="自取">現場自取</button><button data-mode="交接">照護交接</button></div><div id="cart" class="cart"></div><div class="cart-summary"><div><span>品項總數</span><strong id="quantity">0 件</strong></div><p>送出後保存在此裝置，等待遠端接收。</p><button id="submit" class="primary" disabled>確認送出清單 <span>→</span></button><button id="clear" class="clear" disabled>清空清單</button></div></aside>
+<div class="shell">
+<header><div class="brand"><span class="logo">＋</span><div>MediGuard<small>藥單核對工作站</small></div></div><span id="connection" role="status">正在連線…</span></header>
+<nav aria-label="核對步驟"><span id="step-scan" class="active"><b>1</b> 掃描藥單</span><i></i><span id="step-verify"><b>2</b> 拍攝藥品</span><i></i><span id="step-complete"><b>3</b> 完成核對</span></nav>
+<main>
+<section id="idle-view" class="welcome panel"><div class="hero-icon">▦</div><p class="eyebrow">PRESCRIPTION VERIFICATION</p><h1>先掃藥單，再核對藥品</h1><p>將藥單 QR Code 對準 Camera 1，<br>再把一項藥品放入暗箱，由雙鏡頭拍攝。</p><button id="start" class="primary">開始掃描藥單</button><p class="note">藥單僅供本次核對，關閉頁面後需重新掃描。</p></section>
+<section id="scan-view" hidden><div class="section-heading"><div><p class="eyebrow">STEP 01</p><h1>掃描藥單 QR Code</h1></div><button id="cancel-scan">取消掃描</button></div><p>將完整 QR Code 放入 Camera 1 畫面，保持清晰。</p><div id="scan-camera-slot"></div><p id="scan-status" role="status">正在開啟鏡頭…</p><div class="scan-alternatives"><label class="button">選擇藥單 QR 圖片<input id="qr-file" type="file" accept="image/*"></label><button id="manual-toggle">使用 USB 掃碼器／文字</button></div><form id="manual-form" hidden><label for="qr-text">藥單 QR Code 原始 JSON</label><textarea id="qr-text" rows="3" maxlength="65536" spellcheck="false"></textarea><button class="primary" type="submit">讀取藥單</button></form></section>
+<section id="verify-view" hidden><div class="section-heading"><div><p class="eyebrow">STEP 02</p><h1>逐項核對藥品</h1></div><button id="reset">重新掃藥單</button></div><div id="verify-camera-slot"></div><div id="photo-pair" class="photo-pair" hidden><figure><img id="front-photo" alt="Camera 1 正面照片"><figcaption>Camera 1 · 正面</figcaption></figure><figure><img id="back-photo" alt="Camera 2 反面照片"><figcaption>Camera 2 · 反面</figcaption></figure></div><div class="camera-controls"><button id="open-camera" class="primary">開啟鏡頭對準藥品</button><button id="capture" class="primary" hidden>擷取雙鏡頭圖片並送出</button><button id="stop-camera" hidden>關閉鏡頭</button><p id="operation-status" role="status">每次放入一項藥品，完成後更換下一項。</p></div><section class="panel checklist"><div class="section-heading"><h2>藥單核對進度</h2><strong id="progress-count">0 / 0</strong></div><p id="prescription-meta"></p><progress id="progress" value="0" max="1" aria-label="藥單核對進度"></progress><ul id="medicines"></ul></section></section>
+<section id="complete-view" class="welcome panel" hidden><div class="hero-icon">✓</div><p class="eyebrow">VERIFICATION COMPLETE</p><h1>本次藥單核對完成</h1><p id="complete-message"></p><button id="next-prescription" class="primary">掃描下一張藥單</button><p class="note">此結果依 server 辨識與藥名比對產生；仍須依實際藥袋與專業人員確認。</p></section>
+<div id="notice" class="notice" role="status" hidden></div><div id="error" class="error" role="alert" hidden></div>
+<section id="recovery" class="panel recovery" hidden><h2>前次拍攝尚未確認</h2><p>頁面曾離開，請先查詢結果，避免重複送出。藥單內容不會在本機保存。</p><button id="recover">查詢前次拍攝</button><button id="dismiss-recovery">已確認紀錄，開始新流程</button></section>
+</main><footer>Camera 1＋Camera 2 · 固定白光 85% <span>辨識由 MedicServer 執行</span></footer>
 </div>
-<dialog id="confirm"><h2>確認交付清單</h2><p id="confirm-text"></p><div class="dialog-actions"><button id="cancel-confirm">返回修改</button><button id="commit" class="primary">確認保存</button></div></dialog>
-<div id="toast" role="status" aria-live="polite" hidden></div>
-<script src="/app.js" defer></script></body></html>
+<div id="camera-view" class="camera-view" hidden><img id="camera-image" alt="Camera 1 即時預覽"><div class="crosshair" aria-hidden="true"></div><span>CAM 1 · 即時預覽</span></div>
+<script type="module" src="/app.js"></script>
+</body></html>

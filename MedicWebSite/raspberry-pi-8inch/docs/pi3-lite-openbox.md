@@ -1,6 +1,6 @@
 # Raspberry Pi 3B：Pi OS Lite 32 位元＋Openbox
 
-目標：1 GB RAM 的 Pi 3B、HDMI／USB 觸控、單一 Chromium kiosk 與本機 Python／SQLite 服務。這是減少常駐元件的配置，不保證特定 SD 卡、供電或瀏覽器版本不會故障。先在另一張 SD 卡驗證，保留原系統。
+目標：1 GB RAM 的 Pi 3B、HDMI／USB 觸控、單一 Chromium kiosk 與本機 Python 核對介面。這是減少常駐元件的配置，不保證特定 SD 卡、供電或瀏覽器版本不會故障。先在另一張 SD 卡驗證，保留原系統。
 
 ## 1. 基礎系統
 
@@ -23,7 +23,7 @@ cd ~/MediGuard_AI/MedicWebSite/raspberry-pi-8inch
 KIOSK_DESKTOP=openbox bash scripts/install.sh
 ```
 
-Pi OS 分支只用 APT 原生 Chromium；所有套件安裝使用 `--no-install-recommends`。Openbox 模式安裝 Xorg、libinput、Openbox、LightDM／GTK greeter、xterm、xset、D-Bus 與基本執行依賴，不安裝 GNOME 桌面或 Snap。
+Pi OS 分支只用 APT 原生 Chromium；所有套件安裝使用 `--no-install-recommends`。Openbox 模式安裝 Xorg、libinput、Openbox、LightDM／GTK greeter、xterm、xset／xrandr、xinput、D-Bus 與基本執行依賴，不安裝 GNOME 桌面或 Snap。
 
 **已按先前流程安裝完成依賴時：**
 
@@ -31,7 +31,7 @@ Pi OS 分支只用 APT 原生 Chromium；所有套件安裝使用 `--no-install-
 KIOSK_DESKTOP=openbox SKIP_PACKAGE_INSTALL=1 bash scripts/install.sh
 ```
 
-此模式完全略過 APT／Snap，但仍檢查 Python、curl、flock、Chromium、Openbox、Xorg、xset。安裝器保留 `.env`／`data`，建立 systemd 網站服務，並在 `~/.config/openbox/autostart` 管理一個標記區塊；修改前備份原檔，重跑不重複新增。會移除本指南先前提供的已知 Chromium／Epiphany 測試頁自啟行和舊版 kiosk 啟動行，其餘自訂內容保留；其他自行設定的瀏覽器自啟仍須檢查。
+此模式完全略過 APT／Snap，但仍檢查 Python、curl、flock、Chromium、Openbox、Xorg、xset、xrandr、xinput、udevadm。安裝器保留 `.env`／`data`，建立 systemd 網站服務，並在 `~/.config/openbox/autostart` 管理一個標記區塊；修改前備份原檔，重跑不重複新增。會移除本指南先前提供的已知 Chromium／Epiphany 測試頁自啟行和舊版 kiosk 啟動行，其餘自訂內容保留；其他自行設定的瀏覽器自啟仍須檢查。
 
 XDG 的 `mediguard-pos.desktop` 會設為 `Hidden=true`，避免另一個自啟入口。安裝器不會切換顯示管理器、不寫自動登入設定、不重啟桌面或修改網路。若本機另有 GDM，先處理顯示管理器選擇；不要同時啟動 GDM 與 LightDM。
 
@@ -56,7 +56,7 @@ EOF
 sudo systemctl start lightdm
 ```
 
-在 HDMI 螢幕登入並選 Openbox。安裝器已建立 kiosk 自啟，不要再手動加第二行。先驗證點選、捲動、保存及 SSH 是否順暢。瀏覽器預設使用硬體加速；沒有預設 `--disable-gpu`，也不關閉沙箱。原生 Chromium 使用 `~/.config/mediguard-chromium`，不會沿用 Snap profile。
+在 HDMI 螢幕登入並選 Openbox。安裝器已建立 kiosk 自啟，不要再手動加第二行。依 README 建立 mediguard-hardware 並設定 server 後，再驗證掃碼、拍攝、核對與 SSH 是否順暢。瀏覽器預設使用硬體加速；沒有預設 `--disable-gpu`，也不關閉沙箱。舊展示品項／交付清單已移除，硬體部署以 README 為準。原生 Chromium 使用 `~/.config/mediguard-chromium`，不會沿用 Snap profile。
 
 瀏覽器磁碟快取目標上限 32 MiB、媒體快取 8 MiB；這些不是瀏覽器總 RAM／profile 大小限制。停用擴充功能與帳號同步，X11 session 停用螢幕保護／DPMS。保留 Chromium 的程序隔離。
 
@@ -91,6 +91,8 @@ vmstat 1 5
 
 | 環境變數 | 用途 |
 | --- | --- |
+| `KIOSK_ROTATION=right` | X11 預設順時針 90 度，1280×800 成為 800×1280；`left` 方向相反、`normal` 還原橫向 |
+| `KIOSK_TOUCH_DEVICE=完整裝置名稱` | 未自動辨識 USB touchscreen 時，以 `xinput --list` 查得的名稱指定；不要指定一般滑鼠 |
 | `KIOSK_READY_TIMEOUT=60` | 等待本機 API 的上限秒數，逾時記錄原因並退出 |
 | `KIOSK_DISABLE_GPU=1` | 僅供 GPU 故障交叉測試，可能增加 CPU 負擔 |
 | `CHROMIUM_BIN=/usr/bin/chromium` | 明確指定瀏覽器可執行檔的完整路徑 |
@@ -107,3 +109,17 @@ sudo systemctl stop lightdm
 ```
 
 先讓系統恢復，再分析記憶體、SD 卡／I/O、供電與瀏覽器日誌。不要用 `--no-sandbox` 或關閉 AppArmor 當作效能調整。
+
+## 6. 直向顯示與觸控
+
+新版 `kiosk.sh` 在啟動 Chromium 前呼叫 `rotate-x11.py`，對單一啟用中的 X11 螢幕套用 `right` 旋轉，保留原硬體模式。1280×800 旋轉後桌面為 800×1280；網頁自動採依序顯示掃碼、鏡頭定位與藥單核對進度的直向排版。此工具不更改開機文字或 LightDM 登入畫面，也不適用 Wayland／GNOME；原 GNOME 旋轉工具仍獨立保留。
+
+Openbox 模式現在需要 `xinput`、`xrandr` 與 `udevadm`。既有最小安裝缺少 xinput 時，只補裝：
+
+```bash
+sudo apt install --no-install-recommends xinput
+```
+
+旋轉工具用 udev 的 `ID_INPUT_TOUCHSCREEN=1` 辨識 USB 觸控，設定絕對矩陣，重登不會累加角度，也不更改一般滑鼠。限定一個啟用中的螢幕；多螢幕時拒絕修改。未辨識觸控或套用失敗時記錄警告，須實機確認四角與中心點都準確。
+
+方向相反時，在 Openbox 的 `# BEGIN MEDIGUARD KIOSK` 區塊前加上 `export KIOSK_ROTATION=left`，再重啟 LightDM。還原橫向用 `normal`。若外部設定已套用觸控校正，請確認本工具的矩陣與該設定沒有衝突。

@@ -92,6 +92,7 @@ class LauncherExecutionTests(unittest.TestCase):
         self.bin.mkdir()
         (self.directory / 'scripts').mkdir()
         shutil.copy2(ROOT / 'scripts/kiosk.sh', self.directory / 'scripts/kiosk.sh')
+        shutil.copy2(ROOT / 'scripts/rotate-x11.py', self.directory / 'scripts/rotate-x11.py')
         self.env = os.environ.copy()
         self.env.update(HOME=self.directory.as_posix(), XDG_STATE_HOME='', XDG_RUNTIME_DIR='',
                         DISPLAY=':test', WAYLAND_DISPLAY='', MOCK_BIN=self.bin.as_posix(),
@@ -104,6 +105,8 @@ class LauncherExecutionTests(unittest.TestCase):
         # Mock locking here; these tests do not claim to verify kernel flock behavior.
         self.mock('flock', 'exit 0')
         self.mock('xset', 'exit 0')
+        self.mock('xrandr', 'if [[ "$1" == --query ]]; then echo "HDMI-1 connected 1280x800+0+0 (normal left right)"; fi')
+        self.mock('xinput', 'exit 0')
         self.mock('chromium', 'printf "%s\\n" "$@" > "$HOME/browser-args"')
 
     def mock(self, name, body):
@@ -159,7 +162,7 @@ class LauncherExecutionTests(unittest.TestCase):
         (self.directory / 'scripts/install.sh').write_text(script, encoding='utf-8', newline='\n')
         (self.directory / '.env.example').write_text('POS_PORT=8088\n')
         self.env.update(KIOSK_DESKTOP='openbox', SKIP_PACKAGE_INSTALL='1')
-        for command in ('openbox-session', 'Xorg'):
+        for command in ('openbox-session', 'Xorg', 'xrandr', 'xinput', 'udevadm'):
             self.mock(command, 'exit 0')
         self.mock('sudo', '''case "$1" in
 install) cp "${@: -2:1}" "$HOME/installed-service" ;;

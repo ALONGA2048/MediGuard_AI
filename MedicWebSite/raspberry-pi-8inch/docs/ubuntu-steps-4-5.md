@@ -1,3 +1,5 @@
+> 此文件記錄舊 Ubuntu／展示清單部署。Pi 3 HDMI 藥單核對工作站請改依 ../README.md 與 pi3-lite-openbox.md，勿再安裝 GNOME 或設定舊清單同步 API。
+
 # Ubuntu 第 4、5 步逐項操作
 
 對應主 README 的「1280×800、自動登入、不休眠」及「Tailscale、遠端同步」。前提是已安裝 Ubuntu GNOME 桌面，並執行過 `bash scripts/install.sh`。以下標示在哪一台裝置操作，請勿把 Windows 指令貼到 Ubuntu。

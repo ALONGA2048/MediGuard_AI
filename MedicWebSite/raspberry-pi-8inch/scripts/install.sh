@@ -41,7 +41,7 @@ if [[ "${SKIP_PACKAGE_INSTALL:-0}" != 1 ]]; then
   if [[ "$DESKTOP" == openbox ]]; then
     sudo apt-get install -y --no-install-recommends \
       xserver-xorg xserver-xorg-input-libinput openbox lightdm lightdm-gtk-greeter \
-      xterm x11-xserver-utils dbus-x11 util-linux
+      xterm x11-xserver-utils xinput dbus-x11 util-linux
   fi
 fi
 for dependency in python3 curl flock; do
@@ -53,7 +53,7 @@ if ! command -v chromium >/dev/null && ! command -v chromium-browser >/dev/null 
 fi
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else "需要 Python 3.11 以上")'
 if [[ "$DESKTOP" == openbox ]]; then
-  for dependency in openbox-session Xorg xset; do
+  for dependency in openbox-session Xorg xset xrandr xinput udevadm; do
     command -v "$dependency" >/dev/null || { echo "Openbox 模式缺少必要指令：$dependency" >&2; exit 1; }
   done
 fi
@@ -65,7 +65,7 @@ UNIT="$(mktemp)"
 trap 'rm -f -- "$UNIT"' EXIT
 cat > "$UNIT" <<EOF
 [Unit]
-Description=MediGuard 8-inch local terminal
+Description=MediGuard 8-inch prescription verification kiosk
 After=network.target
 
 [Service]

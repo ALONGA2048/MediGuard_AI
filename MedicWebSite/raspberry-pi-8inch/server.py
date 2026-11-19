@@ -1,118 +1,133 @@
-"""Offline-first touch terminal. Python 3.11+, standard library only."""
-import hmac
+"""Lightweight prescription verification UI and local hardware API proxy."""
 import json
 import os
 from pathlib import Path
-import sqlite3
+import re
 import threading
-import time
 import uuid
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlsplit
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 ROOT = Path(__file__).resolve().parent
-# Deliberately not a shell parser: values are literal, one NAME=value per line.
 for line in (ROOT / '.env').read_text(encoding='utf-8-sig').splitlines() if (ROOT / '.env').exists() else []:
     if line.strip() and not line.lstrip().startswith('#'):
         key, value = line.split('=', 1)
         os.environ.setdefault(key.strip(), value.strip())
-DB = Path(os.environ.get('POS_DB', str(ROOT / 'data' / 'pos.sqlite3')))
-REMOTE = os.environ.get('POS_SYNC_URL', '')
-TOKEN = os.environ.get('POS_SYNC_TOKEN', '')
-DEVICE = os.environ.get('POS_DEVICE_ID', 'mediguard-pi-01')
-SYNC_LOCK = threading.Lock()
-LAST_SYNC = {'message': '尚未同步', 'at': None}
-CATALOG = json.loads((ROOT / 'catalog.json').read_text(encoding='utf-8'))
+HARDWARE = os.environ.get('POS_HARDWARE_URL', 'http://127.0.0.1:5000').rstrip('/')
+DEVICE_TOKEN = os.environ.get('MEDILENS_DEVICE_TOKEN', '')
+JOBS_DIR = Path(os.environ.get('POS_REQUEST_DIR', str(ROOT / 'data' / 'requests')))
+CAPTURE_TIMEOUT = 120
+MAX_JSON = 1024 * 1024
+LOCK = threading.RLock()
+ACTIVE_REQUEST = None
+UUID = r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 
 
-@contextmanager
-def database():
-    con = sqlite3.connect(DB, timeout=15)
-    con.row_factory = sqlite3.Row
-    try:
-        with con:
-            yield con
-    finally:
-        con.close()
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+OPENER = build_opener(ProxyHandler({}), NoRedirect())
 
 
 def initialize():
-    DB.parent.mkdir(parents=True, exist_ok=True)
-    with database() as con:
-        con.execute('PRAGMA journal_mode=WAL')
-        con.execute('CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, payload TEXT NOT NULL, synced INTEGER NOT NULL DEFAULT 0, received INTEGER NOT NULL DEFAULT 0)')
+    address = urlsplit(HARDWARE)
+    if address.scheme not in ('http', 'https') or not address.hostname or address.username or address.password or address.query or address.fragment:
+        raise ValueError('POS_HARDWARE_URL 必須是無帳密與查詢參數的 HTTP(S) 位址。')
+    JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    # Never automatically repeat a capture after a proxy restart.
+    for path in JOBS_DIR.glob('*.json'):
+        if not re.fullmatch(UUID, path.stem):
+            continue
+        try:
+            state = json.loads(path.read_text(encoding='utf-8'))
+            if state.get('status') == 'capturing':
+                write_job(path.stem, {'status': 'uncertain', 'error': '服務曾重新啟動；請先確認上次拍攝結果，避免重複送出。'})
+        except (OSError, ValueError):
+            continue
 
 
-def validate(payload):
-    if not isinstance(payload, dict):
-        raise ValueError('資料格式錯誤')
-    uuid.UUID(payload.get('id', ''))
-    if not isinstance(payload.get('device'), str) or not 1 <= len(payload['device']) <= 100:
-        raise ValueError('裝置代號錯誤')
-    datetime.fromisoformat(payload.get('created_at', ''))
-    if payload.get('mode') not in ('自取', '交接'):
-        raise ValueError('交付方式錯誤')
-    items = payload.get('items')
-    if not isinstance(items, list) or not 1 <= len(items) <= 100:
-        raise ValueError('請選擇品項')
-    for item in items:
-        if not isinstance(item, dict) or not isinstance(item.get('id'), str) or not isinstance(item.get('name'), str):
-            raise ValueError('品項格式錯誤')
-        if type(item.get('quantity')) is not int or not 1 <= item['quantity'] <= 99:
-            raise ValueError('數量須為 1–99')
+def upstream(path, payload=None, timeout=10):
+    headers = {'Accept': 'application/json'}
+    if DEVICE_TOKEN:
+        headers['Authorization'] = 'Bearer ' + DEVICE_TOKEN
+    body = None
+    if payload is not None:
+        headers['Content-Type'] = 'application/json'
+        body = json.dumps(payload).encode()
+    return OPENER.open(Request(HARDWARE + '/api/v1' + path, body, headers), timeout=timeout)
 
 
-def save(payload, received=False):
-    validate(payload)
-    with database() as con:
-        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-        con.execute('INSERT OR IGNORE INTO records VALUES (?, ?, ?, ?)',
-                    (payload['id'], canonical, int(received), int(received)))
-        # Acquire the write transaction before comparing, including concurrent retries.
-        existing = con.execute('SELECT payload FROM records WHERE id=?', (payload['id'],)).fetchone()
-        if existing['payload'] != canonical:
-            raise ValueError('相同紀錄 ID 的內容不一致')
-    return payload['id']
+def upstream_json(path, payload=None, timeout=10):
+    with upstream(path, payload, timeout) as response:
+        body = response.read(MAX_JSON + 1)
+        if len(body) > MAX_JSON:
+            raise ValueError('upstream_response_too_large')
+        value = json.loads(body)
+        if not isinstance(value, dict):
+            raise ValueError('invalid_upstream_response')
+        return value
 
 
-def sync_once():
-    if not SYNC_LOCK.acquire(blocking=False):
-        return
+def write_job(request_id, state):
+    state = dict(state, requestId=request_id, updatedAt=datetime.now(timezone.utc).isoformat())
+    with LOCK:
+        target = JOBS_DIR / (request_id + '.json')
+        temporary = target.with_suffix('.tmp')
+        temporary.write_text(json.dumps(state, ensure_ascii=False), encoding='utf-8')
+        temporary.replace(target)
+    return state
+
+
+def read_job(request_id):
+    with LOCK:
+        path = JOBS_DIR / (request_id + '.json')
+        return json.loads(path.read_text(encoding='utf-8')) if path.is_file() else None
+
+
+def capture_worker(request_id):
+    global ACTIVE_REQUEST
     try:
-        if not REMOTE or not TOKEN:
-            LAST_SYNC.update(message='本機模式：尚未設定同步網址／Token', at=None)
-            return
-        with database() as con:
-            rows = con.execute('SELECT id, payload FROM records WHERE synced=0 AND received=0 ORDER BY rowid LIMIT 20').fetchall()
-        if not rows:
-            LAST_SYNC.update(message='目前沒有待傳資料（未探測遠端連線）', at=LAST_SYNC['at'])
-            return
-        for row in rows:
-            request = Request(REMOTE, row['payload'].encode(), {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN})
-            with urlopen(request, timeout=10) as response:
-                ack = json.loads(response.read(65536))
-            if ack.get('id') != row['id'] or ack.get('ok') is not True:
-                raise ValueError('遠端未確認紀錄 ID')
-            with database() as con:
-                con.execute('UPDATE records SET synced=1 WHERE id=?', (row['id'],))
-        LAST_SYNC.update(message='遠端已連線，待傳紀錄會持續送出', at=datetime.now(timezone.utc).isoformat())
+        result = upstream_json('/commands', {
+            'commandId': request_id, 'deviceId': 'medibox-01', 'type': 'capture',
+            'payload': {'lightMode': 'white', 'brightness': 85, 'sendToServer': True},
+        }, timeout=CAPTURE_TIMEOUT)
+        if result.get('success') is False or not result.get('result', {}).get('captureId'):
+            write_job(request_id, {'status': 'failed', 'error': '拍攝未完成，請檢查鏡頭與硬體服務。'})
+        else:
+            write_job(request_id, {'status': 'completed', 'result': result['result']})
+    except HTTPError as error:
+        certain_rejection = error.code in (400, 401, 403, 409)
+        write_job(request_id, {'status': 'failed' if certain_rejection else 'uncertain',
+                              'error': '硬體服務拒絕或未確認拍攝，請先檢查硬體日誌。'})
     except Exception:
-        LAST_SYNC.update(message='同步未完成：請檢查熱點、Tailscale、接收端與 Token；稍後自動重試', at=None)
+        # A timeout does not prove that the hardware failed to save/send the pair.
+        write_job(request_id, {'status': 'uncertain', 'error': '未收到拍攝確認；請先檢查硬體紀錄，勿直接重複拍攝。'})
     finally:
-        SYNC_LOCK.release()
+        with LOCK:
+            ACTIVE_REQUEST = None
 
 
-def sync_loop():
-    while True:
-        sync_once()
-        time.sleep(30)
+def start_capture(request_id):
+    global ACTIVE_REQUEST
+    with LOCK:
+        existing = read_job(request_id)
+        if existing:
+            return existing, 200
+        if ACTIVE_REQUEST:
+            return {'error': '另一個拍攝作業仍在進行。'}, 409
+        state = write_job(request_id, {'status': 'capturing'})
+        ACTIVE_REQUEST = request_id
+        threading.Thread(target=capture_worker, args=(request_id,), daemon=True).start()
+        return state, 202
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, fmt, *args):
-        # Do not log credentials or request bodies.
+    def log_message(self, *_):
         pass
 
     def reply(self, value, code=200):
@@ -125,70 +140,111 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        path = self.path.split('?')[0]
+        try:
+            self.get()
+        except HTTPError as error:
+            self.reply({'error': '硬體服務未就緒或拒絕請求。'}, error.code if 400 <= error.code < 600 else 502)
+        except (URLError, TimeoutError, OSError, ValueError):
+            try:
+                self.reply({'error': '無法連線至鏡頭服務，請檢查 mediguard-hardware。'}, 502)
+            except OSError:
+                pass
+
+    def get(self):
+        path = urlsplit(self.path).path
         if path == '/api/status':
-            with database() as con:
-                pending = con.execute('SELECT count(*) FROM records WHERE synced=0 AND received=0').fetchone()[0]
-            return self.reply({'device': DEVICE, 'pending': pending, 'configured': bool(REMOTE and TOKEN), 'sync': LAST_SYNC})
-        if path == '/api/catalog':
-            return self.reply(CATALOG)
-        if path == '/api/records':
-            with database() as con:
-                rows = con.execute('SELECT * FROM records ORDER BY rowid DESC LIMIT 100').fetchall()
-            return self.reply([dict(json.loads(r['payload']), synced=bool(r['synced']), received=bool(r['received'])) for r in rows])
-        files = {'/': 'index.html', '/app.js': 'app.js', '/styles.css': 'styles.css'}
+            return self.reply({'ok': True, 'mode': 'prescription-verification'})
+        if path == '/api/device/status':
+            return self.reply(upstream_json('/status'))
+        match = re.fullmatch('/api/device/requests/(' + UUID + ')', path)
+        if match:
+            state = read_job(match[1])
+            return self.reply(state or {'error': '找不到拍攝作業。'}, 200 if state else 404)
+        match = re.fullmatch('/api/device/captures/(' + UUID + ')/verification', path)
+        if match:
+            return self.reply(upstream_json('/captures/' + match[1] + '/verification'))
+        match = re.fullmatch('/api/device/captures/(' + UUID + ')/camera/([12])', path)
+        if match:
+            return self.proxy_media('/captures/' + match[1] + '/camera/' + match[2], 'image/jpeg')
+        if path == '/api/device/preview/stream':
+            if parse_qs(urlsplit(self.path).query).get('camera', ['1']) != ['1']:
+                return self.reply({'error': 'invalid_camera_id'}, 400)
+            return self.proxy_media('/preview/stream?camera=1', 'multipart/x-mixed-replace; boundary=frame')
+        files = {'/': 'index.html', '/app.js': 'app.js', '/workflow.js': 'workflow.js',
+                 '/styles.css': 'styles.css', '/vendor/zxing-browser.min.js': 'vendor/zxing-browser.min.js',
+                 '/vendor/LICENSE-ZXing-browser.txt': 'vendor/LICENSE-ZXing-browser.txt',
+                 '/vendor/LICENSE-ZXing-library.txt': 'vendor/LICENSE-ZXing-library.txt'}
         if path not in files:
             return self.reply({'error': 'not_found'}, 404)
         name = files[path]
         body = (ROOT / 'static' / name).read_bytes()
         self.send_response(200)
-        self.send_header('Content-Type', {'html': 'text/html; charset=utf-8', 'js': 'text/javascript; charset=utf-8', 'css': 'text/css; charset=utf-8'}[name.split('.')[-1]])
+        self.send_header('Content-Type', {'html': 'text/html; charset=utf-8', 'js': 'text/javascript; charset=utf-8',
+                                        'css': 'text/css; charset=utf-8', 'txt': 'text/plain; charset=utf-8'}[name.split('.')[-1]])
         self.send_header('Content-Length', str(len(body)))
         self.send_header('Cache-Control', 'no-cache')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.end_headers()
         self.wfile.write(body)
 
+    def proxy_media(self, path, content_type):
+        with upstream(path) as response:
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.end_headers()
+            try:
+                while True:
+                    chunk = response.read1(65536)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+            except (OSError, TimeoutError):
+                return
+
     def do_POST(self):
         try:
-            if self.path == '/api/receive':
-                if not TOKEN or not hmac.compare_digest(self.headers.get('Authorization', ''), 'Bearer ' + TOKEN):
-                    return self.reply({'error': 'unauthorized'}, 401)
-            elif self.path not in ('/api/records', '/api/sync'):
-                return self.reply({'error': 'not_found'}, 404)
-            else:
-                # Browser writes require same-origin JSON; reject cross-site form submissions.
-                origin = self.headers.get('Origin')
-                if origin and origin != 'http://' + self.headers.get('Host', '') and origin != 'https://' + self.headers.get('Host', ''):
-                    return self.reply({'error': 'origin_rejected'}, 403)
+            origin = self.headers.get('Origin')
+            if origin and origin not in ('http://' + self.headers.get('Host', ''), 'https://' + self.headers.get('Host', '')):
+                return self.reply({'error': 'origin_rejected'}, 403)
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
                 return self.reply({'error': 'JSON required'}, 415)
             length = int(self.headers.get('Content-Length', '0'))
-            if not 0 < length <= 65536:
+            if not 0 < length <= 4096:
                 return self.reply({'error': 'body_size'}, 413)
             payload = json.loads(self.rfile.read(length))
-            if self.path == '/api/sync':
-                threading.Thread(target=sync_once, daemon=True).start()
-                return self.reply({'ok': True})
-            if self.path == '/api/records':
-                catalog = {item['id']: item for item in CATALOG}
-                for item in payload.get('items', []):
-                    if item['id'] not in catalog:
-                        raise ValueError('未知品項')
-                    item['name'] = catalog[item['id']]['name']
-                payload['device'] = DEVICE
-            record_id = save(payload, received=self.path == '/api/receive')
-            self.reply({'ok': True, 'id': record_id})
-        except (ValueError, TypeError, KeyError, AttributeError):
-            self.reply({'error': '資料格式錯誤或相同 ID 的內容不一致'}, 400)
-        except sqlite3.Error:
-            self.reply({'error': '資料庫寫入失敗，請保留清單並檢查磁碟'}, 503)
+            if not isinstance(payload, dict):
+                raise ValueError('invalid JSON')
+            if self.path == '/api/device/preview/start':
+                with LOCK:
+                    if ACTIVE_REQUEST:
+                        return self.reply({'error': '拍攝中，請稍候。'}, 409)
+                    return self.reply(upstream_json('/preview/start', {'lightMode': 'white', 'brightness': 85}))
+            if self.path == '/api/device/preview/stop':
+                with LOCK:
+                    if ACTIVE_REQUEST:
+                        return self.reply({'error': '拍攝中，暫時不能停止鏡頭。'}, 409)
+                    return self.reply(upstream_json('/preview/stop', {}))
+            if self.path == '/api/device/capture':
+                request_id = payload.get('requestId', '')
+                if not isinstance(request_id, str) or not re.fullmatch(UUID, request_id):
+                    raise ValueError('request ID required')
+                state, code = start_capture(request_id)
+                return self.reply(state, code)
+            self.reply({'error': 'not_found'}, 404)
+        except HTTPError:
+            self.reply({'error': '硬體服務拒絕操作，請檢查設定與鏡頭。'}, 502)
+        except (URLError, TimeoutError, OSError):
+            self.reply({'error': '硬體服務無法連線，請檢查 mediguard-hardware。'}, 502)
+        except (ValueError, TypeError):
+            self.reply({'error': '資料格式錯誤。'}, 400)
 
 
 if __name__ == '__main__':
+    os.umask(0o077)
     initialize()
-    threading.Thread(target=sync_loop, daemon=True).start()
-    host = os.environ.get('POS_HOST', '127.0.0.1')
-    port = int(os.environ.get('POS_PORT', '8088'))
-    print(f'MediGuard 8-inch terminal: http://{host}:{port}', flush=True)
+    host, port = os.environ.get('POS_HOST', '127.0.0.1'), int(os.environ.get('POS_PORT', '8088'))
+    print(f'MediGuard verification kiosk: http://{host}:{port}', flush=True)
     ThreadingHTTPServer((host, port), Handler).serve_forever()

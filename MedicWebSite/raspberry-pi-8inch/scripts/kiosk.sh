@@ -77,6 +77,9 @@ FLAGS=(--kiosk --noerrdialogs --no-first-run --no-default-browser-check
   "--user-data-dir=$PROFILE")
 if [[ -n "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   FLAGS+=(--ozone-platform=x11)
+  # Pi 3 HDMI workstation defaults to portrait; reapply each graphical login.
+  python3 "$ROOT/scripts/rotate-x11.py" --rotation "${KIOSK_ROTATION:-right}" || \
+    echo '螢幕／觸控旋轉未完整完成，請檢查上方訊息。'
   if command -v xset >/dev/null; then
     xset s off || true
     xset -dpms || true
